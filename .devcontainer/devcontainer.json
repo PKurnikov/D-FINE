@@ -1,0 +1,47 @@
+{
+  // "image": "nvcr.io/nvidia/tensorrt:23.02-py3",
+  // "initializeCommand": "docker pull nvcr.io/nvidia/tensorrt:23.02-py3",
+  // "image": "nvcr.io/nvidia/tensorrt:24.09-py3",
+  // "initializeCommand": "docker pull nvcr.io/nvidia/tensorrt:24.09-py3",
+  "image": "nvcr.io/nvidia/tensorrt:23.01-py3",
+  "initializeCommand": "docker pull nvcr.io/nvidia/tensorrt:23.01-py3",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.cpptools",
+        "ms-vscode.cmake-tools",
+        "johnstoncode.svn-scm",
+        "beaugust.blamer-vs",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-toolsai.jupyter",
+        "llvm-vs-code-extensions.vscode-clangd",
+        "jyee721.gitlab-snippets"
+      ]
+    }
+  },
+  "remoteUser": "root",
+  "containerEnv": {
+    "DISPLAY": "${localEnv:DISPLAY}", 
+    "LIBGL_ALWAYS_INDIRECT": "${localEnv:LIBGL_ALWAYS_INDIRECT}" 
+  },
+  "mounts": [
+    // "source=${localEnv:HOME}/testdata,target=/testdata,type=bind",
+    // "source=${localEnv:HOME}/upload,target=/upload,type=bind",
+    // "source=${localEnv:HOME}/models,target=/models,type=bind",
+    // "source=${localEnv:HOME}/.conan2/p,target=/home/cpilot/.conan2/p,type=bind",
+    // "source=${localEnv:HOME}/.subversion/auth,target=/home/cpilot/.subversion/auth,type=bind",
+    "source=${localEnv:HOME}/.ssh,target=/home/cpilot/.ssh,type=bind",
+    "source=/data/kurnikov,target=/data/kurnikov,type=bind",
+    "source=/data/Datasets/,target=/data/Datasets,type=bind",
+    // Для прогона юнит-тестов требуется подмонтировать папку test_resources. Укажите свое расположение
+    // "source=${localEnv:HOME}/work/test_resources,target=/workspaces/test_resources,type=bind",
+  ],
+  "runArgs":[
+    // "--runtime=nvidia", // для проброса CUDA
+    "--gpus=all", // для проброса CUDA
+    "--net=host", // для проброса всех портов с хоста
+    "--privileged" // для работы команды debootstrap (создание среды для кросс компиляции)
+  ]
+}
+

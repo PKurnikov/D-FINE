@@ -5,12 +5,21 @@ criterion: DFINECriterion
 postprocessor: DFINEPostProcessor
 
 use_focal_loss: True
-eval_spatial_size: [640, 640] # h w
+eval_spatial_size: [576, 1024] # h w
 
 DFINE:
   backbone: HGNetv2
   encoder: HybridEncoder
   decoder: DFINETransformer
+  spatial: SpatialPath
+  sgm_decoder: BiSeNetDecoder
+
+BiSeNetDecoder:
+  out_planes: 6 #91 # stuff image segmentation – per-pixel segmentation masks with 91 stuff categories, such as grass, wall, sky (see MS COCO Stuff)
+
+SpatialPath:
+  in_planes: 3
+  out_planes: 256 #256 #192 #128 for base BiSeNet, 256 for wider backbone ???
 
 HGNetv2:
   pretrained: True
@@ -45,7 +54,7 @@ DFINETransformer:
   eval_idx: -1
   num_queries: 300
 
-  num_denoising: 100
+  num_denoising: 100 #100 #0 #100
   label_noise_ratio: 0.5
   box_noise_scale: 1.0
 
@@ -67,9 +76,17 @@ DFINETransformer:
 DFINEPostProcessor:
   num_top_queries: 300
 
+ProbOhemCriterion:
+  ignore_label: 255
+  thresh: 0.7
+  min_kept: 256
+  down_ratio: 1
+  weight: None
 
 DFINECriterion:
-  weight_dict: {loss_vfl: 1, loss_bbox: 5, loss_giou: 2, loss_fgl: 0.15, loss_ddf: 1.5}
+  # det = 0.502 (0.507- ref) | segm = 0.88 (0.92 - ref)
+  # weight_dict: {loss_vfl: 1, loss_bbox: 5, loss_giou: 2, loss_fgl: 0.15, loss_ddf: 1.5, pred_sgm_head_0: 0.15, pred_sgm_head_1: 0.15, pred_sgm_head_2: 0.15}
+  weight_dict: {loss_vfl: 1, loss_bbox: 5, loss_giou: 2, loss_fgl: 0.15, loss_ddf: 1.5, pred_sgm_head_0: 1.0, pred_sgm_head_1: 1.0, pred_sgm_head_2: 1.0}
   losses: ['vfl', 'boxes', 'local']
   alpha: 0.75
   gamma: 2.0

@@ -2,18 +2,18 @@ task: detection
 
 evaluator:
   type: CocoEvaluator
-  iou_types: ['bbox', ]
+  iou_types: ['bbox'] # , 'segm'
 
-num_classes: 80
+num_classes: 4 #80 #for COCO # 4
 remap_mscoco_category: True
 
 train_dataloader:
   type: DataLoader
   dataset:
     type: CocoDetection
-    img_folder: /data/COCO2017/train2017/
-    ann_file: /data/COCO2017/annotations/instances_train2017.json
-    return_masks: False
+    img_folder: data/COCO2017/train2017/
+    ann_file: data/COCO2017/annotations/instances_train2017.json #instances_train2017
+    return_masks: False #False
     transforms:
       type: Compose
       ops: ~
@@ -23,14 +23,47 @@ train_dataloader:
   collate_fn:
     type: BatchImageCollateFunction
 
+train_seg_dataloader:
+  type: DataLoader
+  dataset:
+    type: SemSegmentation
+    img_folder: data/KROMKA/
+    split: "train"
+    # ann_file: data/COCO2017/annotations/instances_train2017.json #instances_train2017
+    # return_masks: True #False
+    transforms:
+      type: Compose
+      ops: ~
+  shuffle: True
+  num_workers: 4
+  drop_last: True
+  collate_fn:
+    type: BatchImageCollateFunction
 
 val_dataloader:
   type: DataLoader
   dataset:
     type: CocoDetection
-    img_folder: /data/COCO2017/val2017/
-    ann_file: /data/COCO2017/annotations/instances_val2017.json
-    return_masks: False
+    img_folder: data/COCO2017/val2017/
+    ann_file: data/COCO2017/annotations/instances_val2017.json #instances_val2017
+    return_masks: False #False
+    transforms:
+      type: Compose
+      ops: ~
+  shuffle: False
+  num_workers: 4
+  drop_last: False
+  collate_fn:
+    type: BatchImageCollateFunction
+
+val_seg_dataloader:
+  type: DataLoader
+  dataset:
+    type: SemSegmentation
+    img_folder: data/KROMKA/
+    split: "val"
+    # ann_file: data/COCO2017/annotations/instances_val2017.json #instances_val2017
+    # return_masks: False #False
     transforms:
       type: Compose
       ops: ~

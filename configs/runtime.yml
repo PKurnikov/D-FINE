@@ -1,10 +1,10 @@
-print_freq: 100
+print_freq: 1000
 output_dir: './logs'
-checkpoint_freq: 12
+checkpoint_freq: 1
 
 
 sync_bn: True
-find_unused_parameters: False
+find_unused_parameters: True #False
 
 
 use_amp: False
@@ -18,3 +18,7 @@ ema:
   type: ModelEMA
   decay: 0.9999
   warmups: 1000
+
+use_wandb: False
+project_name: D-FINE # for wandb
+exp_name: baseline # wandb experiment name

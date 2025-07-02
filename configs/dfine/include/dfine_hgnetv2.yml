@@ -1,4 +1,5 @@
-task: detection
+task: multitask
+# task: detection
 
 model: DFINE
 criterion: DFINECriterion
@@ -15,7 +16,11 @@ DFINE:
   sgm_decoder: BiSeNetDecoder
 
 BiSeNetDecoder:
-  out_planes: 6 #91 # stuff image segmentation – per-pixel segmentation masks with 91 stuff categories, such as grass, wall, sky (see MS COCO Stuff)
+  head_configs:
+    tractor_plowed:
+      out_planes: 6
+    agro_drivable:
+      out_planes: 5
 
 SpatialPath:
   in_planes: 3
@@ -86,7 +91,16 @@ ProbOhemCriterion:
 DFINECriterion:
   # det = 0.502 (0.507- ref) | segm = 0.88 (0.92 - ref)
   # weight_dict: {loss_vfl: 1, loss_bbox: 5, loss_giou: 2, loss_fgl: 0.15, loss_ddf: 1.5, pred_sgm_head_0: 0.15, pred_sgm_head_1: 0.15, pred_sgm_head_2: 0.15}
-  weight_dict: {loss_vfl: 1, loss_bbox: 5, loss_giou: 2, loss_fgl: 0.15, loss_ddf: 1.5, pred_sgm_head_0: 1.0, pred_sgm_head_1: 1.0, pred_sgm_head_2: 1.0}
+  weight_dict: {loss_vfl: 1, loss_bbox: 5, 
+                loss_giou: 2, loss_fgl: 0.15, 
+                loss_ddf: 1.5, 
+                pred_sgm_head_tractor_plowed_aux1: 1.0, 
+                pred_sgm_head_tractor_plowed_aux2: 1.0, 
+                pred_sgm_head_tractor_plowed_main: 1.0,
+                pred_sgm_head_agro_drivable_aux1: 1.0, 
+                pred_sgm_head_agro_drivable_aux2: 1.0, 
+                pred_sgm_head_agro_drivable_main: 1.0,}
+
   losses: ['vfl', 'boxes', 'local']
   alpha: 0.75
   gamma: 2.0

@@ -12,7 +12,10 @@ def stats(
     cfg,
     input_shape: Tuple = (1, 3, 576, 1024),
 ) -> Tuple[int, dict]:
-    base_size = cfg.train_dataloader.collate_fn.base_size
+    
+    base_size = cfg.train_dataloaders[-1].collate_fn.base_size
+    assert all(dl.collate_fn.base_size == base_size for dl in cfg.train_dataloaders), "Base sizes are not equal!"
+    
     input_shape = (1, 3, 576, 1024)
 
     model_for_info = copy.deepcopy(cfg.model).deploy()

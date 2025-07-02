@@ -51,7 +51,7 @@ def process_image(model, device, file_path):
 
     output = model(im_data, orig_size)
 
-    detections = output[1]
+    detections = output
     boxes  = detections[:, :, :4]
     scores = detections[:, :, 4:5][:,:,0]
     labels = detections[:, :, 5:6][:,:,0]

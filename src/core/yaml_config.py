@@ -5,24 +5,28 @@ Copyright(c) 2023 lyuwenyu. All Rights Reserved.
 
 import copy
 import re
+from typing import List
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
+from mmengine.config import Config
+
 from ._config import BaseConfig
 from .workspace import create
-from .yaml_utils import load_config, merge_config, merge_dict
-
+from .yaml_utils import load_config, merge_config, merge_dict, flatten_global_cfg
 
 class YAMLConfig(BaseConfig):
     def __init__(self, cfg_path: str, **kwargs) -> None:
         super().__init__()
 
-        cfg = load_config(cfg_path)
-        cfg = merge_dict(cfg, kwargs)
-
+        # cfg = load_config(cfg_path)
+        cfg = Config.fromfile(cfg_path)
+        cfg = merge_dict(cfg.to_dict(), kwargs)
+        # List[Dict] регистрирует как ключ name - значение dict()
+        cfg = flatten_global_cfg(cfg)
         self.yaml_cfg = copy.deepcopy(cfg)
 
         for k in super().__dict__:
@@ -39,23 +43,27 @@ class YAMLConfig(BaseConfig):
             self._model = create(self.yaml_cfg["model"], self.global_cfg)
         return super().model
 
+    # @property
+    # def postprocessor(self) -> torch.nn.Module:
+    #     if self._postprocessor is None and "postprocessor" in self.yaml_cfg:
+    #         self._postprocessor = create(self.yaml_cfg["postprocessor"], self.global_cfg)
+    #     return super().postprocessor
+
     @property
     def postprocessor(self) -> torch.nn.Module:
-        if self._postprocessor is None and "postprocessor" in self.yaml_cfg:
-            self._postprocessor = create(self.yaml_cfg["postprocessor"], self.global_cfg)
-        return super().postprocessor
+        if self._postprocessor is None:
+            cfg = self.yaml_cfg.get("postprocessor", None)
+            assert cfg is not None, "Missing 'postprocessor' config"
+            assert isinstance(cfg, dict) and "type" in cfg, \
+                "Expected 'postprocessor' to be a dict with 'type' key"
+            self._postprocessor = create('postprocessor', self.global_cfg)
+        return self._postprocessor
 
     @property
     def criterion(self) -> torch.nn.Module:
         if self._criterion is None and "criterion" in self.yaml_cfg:
             self._criterion = create(self.yaml_cfg["criterion"], self.global_cfg)
         return super().criterion
-
-    # @property
-    # def sgm_criterion(self, ) -> torch.nn.Module:
-    #     if self._sgm_criterion is None and 'ProbOhemCriterion' in self.yaml_cfg:
-    #         self._sgm_criterion = create(self.yaml_cfg['ProbOhemCriterion'], self.global_cfg)
-    #     return super().sgm_criterion
 
     @property
     def optimizer(self) -> optim.Optimizer:
@@ -80,28 +88,32 @@ class YAMLConfig(BaseConfig):
         return super().lr_warmup_scheduler
 
     @property
-    def train_dataloader(self) -> DataLoader:
-        if self._train_dataloader is None and "train_dataloader" in self.yaml_cfg:
-            self._train_dataloader = self.build_dataloader("train_dataloader")
-        return super().train_dataloader
+    def train_dataloaders(self) -> List[DataLoader]:
+        if self._train_dataloaders is None:
+            self._train_dataloaders = []
+
+            dataloader_cfgs = self.yaml_cfg.get('dataloaders', [])
+            for dl_cfg in dataloader_cfgs:
+                if dl_cfg.get('role') == 'train':
+                    name = dl_cfg.get('name')
+                    dataloader = self.build_dataloader(name)
+                    self._train_dataloaders.append(dataloader)
+
+        return super().train_dataloaders
 
     @property
-    def train_seg_dataloader(self, ) -> DataLoader:
-        if self._train_seg_dataloader is None and 'train_seg_dataloader' in self.yaml_cfg:
-            self._train_seg_dataloader = self.build_dataloader('train_seg_dataloader')
-        return super().train_seg_dataloader
+    def val_dataloaders(self) -> List[DataLoader]:
+        if self._val_dataloaders is None:
+            self._val_dataloaders = []
 
-    @property
-    def val_dataloader(self, ) -> DataLoader:
-        if self._val_dataloader is None and 'val_dataloader' in self.yaml_cfg:
-            self._val_dataloader = self.build_dataloader('val_dataloader')
-        return super().val_dataloader
+            dataloader_cfgs = self.yaml_cfg.get('dataloaders', [])
+            for dl_cfg in dataloader_cfgs:
+                if dl_cfg.get('role') == 'val':
+                    name = dl_cfg.get('name')
+                    dataloader = self.build_dataloader(name)
+                    self._val_dataloaders.append(dataloader)
 
-    @property
-    def val_seg_dataloader(self, ) -> DataLoader:
-        if self._val_seg_dataloader is None and 'val_seg_dataloader' in self.yaml_cfg:
-            self._val_seg_dataloader = self.build_dataloader('val_seg_dataloader')
-        return super().val_seg_dataloader
+        return super().val_dataloaders
 
     @property
     def ema(self, ) -> torch.nn.Module:
@@ -116,16 +128,35 @@ class YAMLConfig(BaseConfig):
         return super().scaler
 
     @property
-    def evaluator(self):
-        if self._evaluator is None and "evaluator" in self.yaml_cfg:
-            if self.yaml_cfg["evaluator"]["type"] == "CocoEvaluator":
-                from ..data import get_coco_api_from_dataset
+    def evaluators(self):
+        if self._evaluators is None:
+            self._evaluators = {}
+            self._postprocessors = {}
 
-                base_ds = get_coco_api_from_dataset(self.val_dataloader.dataset)
-                self._evaluator = create("evaluator", self.global_cfg, coco_gt=base_ds)
-            else:
-                raise NotImplementedError(f"{self.yaml_cfg['evaluator']['type']}")
-        return super().evaluator
+            for loader in self.val_dataloaders:
+                meta = getattr(loader, '_meta', {})
+                name = meta.get('name')
+
+                # Найти конкретный dataloader config по имени
+                loader_cfg = next(
+                    (cfg for cfg in self.global_cfg['dataloaders'] if cfg['name'] == name),
+                    None
+                )
+                if loader_cfg is None:
+                    continue
+
+                # binding evaluator и postprocessor
+                evaluator, postprocessor = self.build_evaluator_and_postprocessor(loader_cfg)
+                self._evaluators[name] = evaluator
+                self._postprocessors[name] = postprocessor
+
+        return self._evaluators
+
+    @property
+    def postprocessors(self):
+        if self._postprocessors is None:
+            _ = self.evaluators  # вызываем evaluators чтобы заполнить постпроцессоры тоже
+        return self._postprocessors
 
     @property
     def use_wandb(self) -> bool:
@@ -202,4 +233,46 @@ class YAMLConfig(BaseConfig):
         print(f"building {name} with batch_size={bs}...")
         loader = create(name, global_cfg, batch_size=bs)
         loader.shuffle = self.yaml_cfg[name].get("shuffle", False)
+
+
+        # Найти конкретный dataloader config по имени
+        dataloader_cfg = next(
+            (cfg for cfg in global_cfg['dataloaders'] if cfg['name'] == name),
+            None
+        )
+
+        if dataloader_cfg is not None:
+            name = dataloader_cfg['name']
+            role = dataloader_cfg['role']
+            evaluator = None
+            postprocessor = None
+            if 'evaluator' in dataloader_cfg:
+                evaluator = dataloader_cfg['evaluator']
+            if 'postprocessor' in dataloader_cfg:
+                postprocessor = dataloader_cfg['postprocessor']
+            # Метаинформация для инициализации evaluators и postprocessors
+            loader._meta = {
+                'name': name,
+                'role': role,
+                'evaluator': evaluator,
+                'postprocessor': postprocessor
+            }
+
         return loader
+    
+    def build_evaluator_and_postprocessor(self, cfg):
+        evaluator_cfg = cfg.get('evaluator')
+        evaluator = None
+        if evaluator_cfg:
+            evaluator_cfg_ = {'evaluator': evaluator_cfg}
+            evaluator_cfg_.update({evaluator_cfg['type']: self.global_cfg[evaluator_cfg['type']]})
+            evaluator = create('evaluator', evaluator_cfg_) if evaluator_cfg_ else None
+        postprocessor_cfg = cfg.get('postprocessor')
+        
+        postprocessor = None
+        if postprocessor_cfg:
+            postprocessor_cfg_ = {'postprocessor': postprocessor_cfg}
+            postprocessor_cfg_.update({postprocessor_cfg['type']: self.global_cfg[postprocessor_cfg['type']]})
+            postprocessor = create('postprocessor', postprocessor_cfg_) if postprocessor_cfg_ else None
+
+        return evaluator, postprocessor

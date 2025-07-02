@@ -46,8 +46,8 @@ class DetSolver(BaseSolver):
                 module,
                 self.criterion,
                 self.postprocessor,
-                [self.val_dataloader, self.val_seg_dataloader],
-                self.evaluator,
+                self.val_dataloaders,
+                self.evaluators,
                 self.device,
                 self.last_epoch,
                 self.use_wandb
@@ -58,32 +58,21 @@ class DetSolver(BaseSolver):
                 top1 = test_stats[k][0]
                 print(f"best_stat: {best_stat}")
 
-        train_data_loaders = [
-            getattr(self, attr) for attr in dir(self)
-            if attr.startswith("train_") and "dataloader" in attr and isinstance(getattr(self, attr), torch.utils.data.DataLoader)
-        ]
-
-        # val_data_loaders = [
-        #     getattr(self, attr) for attr in dir(self)
-        #     if attr.startswith("val_") and "dataloader" in attr and isinstance(getattr(self, attr), torch.utils.data.DataLoader)
-        # ]
-
         best_stat_print = best_stat.copy()
         start_time = time.time()
         start_epoch = self.last_epoch + 1
         for epoch in range(start_epoch, args.epochs):
-            for dataloader in train_data_loaders:
+            for dataloader in self.train_dataloaders:
                 dataloader.set_epoch(epoch)
-            # self.train_dataloader.set_epoch(epoch)
-            # self.train_seg_dataloader.set_epoch(epoch)
-            # self.train_dataloader.dataset.set_epoch(epoch)
-            if dist_utils.is_dist_available_and_initialized():
-                for dataloader in train_data_loaders:
-                    dataloader.sampler.set_epoch(epoch)
-                # self.train_dataloader.sampler.set_epoch(epoch)
-                # self.train_seg_dataloader.sampler.set_epoch(epoch)
 
-            if epoch == self.train_dataloader.collate_fn.stop_epoch:
+            if dist_utils.is_dist_available_and_initialized():
+                for dataloader in self.train_dataloaders:
+                    dataloader.sampler.set_epoch(epoch)
+
+            # TODO
+            stop_epoch = self.train_dataloaders[-1].collate_fn.stop_epoch
+
+            if epoch == stop_epoch:
                 self.load_resume_state(str(self.output_dir / "best_stg1.pth"))
                 if self.ema:
                     self.ema.decay = self.train_dataloader.collate_fn.ema_restart_decay
@@ -92,7 +81,7 @@ class DetSolver(BaseSolver):
             train_stats = train_one_epoch(
                 self.model,
                 self.criterion,
-                train_data_loaders,
+                self.train_dataloaders,
                 self.optimizer,
                 self.device,
                 epoch,
@@ -112,7 +101,7 @@ class DetSolver(BaseSolver):
 
             self.last_epoch += 1
 
-            if self.output_dir and epoch < self.train_dataloader.collate_fn.stop_epoch:
+            if self.output_dir and epoch < stop_epoch:
                 checkpoint_paths = [self.output_dir / "last.pth"]
                 # extra checkpoint before LR drop and every 100 epochs
                 if (epoch + 1) % args.checkpoint_freq == 0:
@@ -125,8 +114,8 @@ class DetSolver(BaseSolver):
                 module,
                 self.criterion,
                 self.postprocessor,
-                [self.val_dataloader, self.val_seg_dataloader],
-                self.evaluator,
+                self.val_dataloaders,
+                self.evaluators,
                 self.device,
                 epoch,
                 self.use_wandb,
@@ -152,7 +141,7 @@ class DetSolver(BaseSolver):
                     best_stat_print["epoch"] = epoch
                     top1 = best_stat[k]
                     if self.output_dir:
-                        if epoch >= self.train_dataloader.collate_fn.stop_epoch:
+                        if epoch >= stop_epoch:
                             dist_utils.save_on_master(
                                 self.state_dict(), self.output_dir / "best_stg2.pth"
                             )
@@ -165,7 +154,7 @@ class DetSolver(BaseSolver):
                 print(f"best_stat: {best_stat_print}")  # global best
 
                 if best_stat["epoch"] == epoch and self.output_dir:
-                    if epoch >= self.train_dataloader.collate_fn.stop_epoch:
+                    if epoch >= stop_epoch:
                         if test_stats[k][0] > top1:
                             top1 = test_stats[k][0]
                             dist_utils.save_on_master(
@@ -177,7 +166,7 @@ class DetSolver(BaseSolver):
                             self.state_dict(), self.output_dir / "best_stg1.pth"
                         )
 
-                elif epoch >= self.train_dataloader.collate_fn.stop_epoch:
+                elif epoch >= stop_epoch:
                     best_stat = {
                         "epoch": -1,
                     }
@@ -217,11 +206,6 @@ class DetSolver(BaseSolver):
                                 self.output_dir / "eval" / name,
                             )
 
-        # del coco_evaluator
-        # torch.cuda.empty_cache()  # Освободить GPU память
-        # gc.collect()  # Явно вызвать сборщик мусора
-        
-        
         total_time = time.time() - start_time
         total_time_str = str(datetime.timedelta(seconds=int(total_time)))
         print("Training time {}".format(total_time_str))
@@ -234,8 +218,8 @@ class DetSolver(BaseSolver):
             module,
             self.criterion,
             self.postprocessor,
-            [self.val_dataloader, self.val_seg_dataloader],
-            self.evaluator,
+            self.val_dataloaders,
+            self.evaluators,
             self.device,
             epoch=-1,
             use_wandb=False,

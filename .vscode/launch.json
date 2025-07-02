@@ -37,15 +37,16 @@
             "justMyCode": false,
             "args": [
                 "--master_port",
-                "7777",
+                "7778",
                 "--nproc_per_node",
                 "4",
                 "train.py",
                 "-c",
-                "configs/dfine/objects365/dfine_hgnetv2_m_obj2coco.yml",
+                "configs/dfine/objects365/dfine_hgnetv2_m_obj2coco.py",
+                // "configs/dfine/objects365/dfine_hgnetv2_m_obj2coco.yml",
                 "--use-amp",  // ← Include this only if you want AMP
-                "-t",
-                "output/dfine_s_obj365.pth",
+                // "-r",
+                // "output/dfine_hgnetv2_m_obj2coco/checkpoint0006.pth",
                 // "--test-only"
                 // "--use-amp",
                 // "False"
@@ -123,14 +124,14 @@
             "name": "export_onnx",
             "type": "debugpy",
             "request": "launch",
-            "program": "tools/deployment/export_onnx.py",
+            "program": "tools/deployment/export_onnx_base.py",
             "console": "integratedTerminal",
             //"args": ["-c", "configs/dfine/objects365/dfine_hgnetv2_s_obj2coco.yml", "-t", "output/dfine_s_obj365.pth"],
             "args": [
                 "-c",
-                "configs/dfine/objects365/dfine_hgnetv2_m_obj2coco.yml",
+                "configs/dfine/objects365/dfine_hgnetv2_m_obj2coco.py",
                 "-r",
-                "output/dfine_hgnetv2_m_obj2coco/checkpoint0010.pth"
+                "output/dfine_hgnetv2_m_obj2coco/checkpoint0008.pth"
             ],
             // "args": ["-c", "configs/dfine/objects365/dfine_hgnetv2_s_obj2coco.yml"], 
             // "args": ["-c", "configs/dfine/dfine_hgnetv2_l_coco.yml",
@@ -148,9 +149,9 @@
             //"args": ["-c", "configs/dfine/objects365/dfine_hgnetv2_s_obj2coco.yml", "-t", "output/dfine_s_obj365.pth"],
             "args": [
                 "--onnx",
-                "output/dfine_hgnetv2_m_obj2coco/checkpoint0010_op16.onnx",
+                "output/dfine_hgnetv2_m_obj2coco/checkpoint0016_op16.onnx",
                 "--trt",
-                "output/dfine_hgnetv2_m_obj2coco/checkpoint0010_op16.engine"
+                "output/dfine_hgnetv2_m_obj2coco/checkpoint0016_op16_fp16.engine"
             ],
             // "args": ["-c", "configs/dfine/objects365/dfine_hgnetv2_s_obj2coco.yml"], 
             // "args": ["-c", "configs/dfine/dfine_hgnetv2_l_coco.yml",
@@ -168,11 +169,11 @@
             //"args": ["-c", "configs/dfine/objects365/dfine_hgnetv2_s_obj2coco.yml", "-t", "output/dfine_s_obj365.pth"],
             "args": [
                 "-t",
-                "output/dfine_hgnetv2_m_obj2coco/checkpoint0010_op16.engine",
+                "output/dfine_hgnetv2_m_obj2coco/checkpoint0016_op16_fp16.engine",
                 "-i",
                 "data/COCO2017/val2017",
                 "-o",
-                "output/dfine_hgnetv2_m_obj2coco/eval/trt"
+                "output/dfine_hgnetv2_m_obj2coco/eval/trt_fp16"
             ],
             // "args": ["-c", "configs/dfine/objects365/dfine_hgnetv2_s_obj2coco.yml"], 
             // "args": ["-c", "configs/dfine/dfine_hgnetv2_l_coco.yml",
@@ -187,9 +188,9 @@
             "request": "launch",
             "program": "tools/inference/torch_inf.py",
             "console": "integratedTerminal",
-            "args": ["-c", "configs/dfine/objects365/dfine_hgnetv2_m_obj2coco.yml",
-                     "-r", "output/dfine_hgnetv2_m_obj2coco/checkpoint0007.pth",
-                     "--input", "000000000252.jpg",
+            "args": ["-c", "configs/dfine/objects365/dfine_hgnetv2_m_obj2coco.py",
+                     "-r", "output/dfine_hgnetv2_m_obj2coco/checkpoint0009.pth",
+                     "--input", "output/sba.017.024.rightImage.000001.jpg",
                      "--device", "cuda:0"],     
             "justMyCode": false
         },
@@ -213,7 +214,7 @@
             //"args": ["-c", "configs/dfine/objects365/dfine_hgnetv2_s_obj2coco.yml", "-t", "output/dfine_s_obj365.pth"],
             "args": [
                 "--onnx",
-                "output/dfine_hgnetv2_m_obj2coco/checkpoint0010.onnx",
+                "output/dfine_hgnetv2_m_obj2coco/checkpoint0008.onnx",
                 "--input",
                 "data/COCO2017/val2017",
                 "--output",

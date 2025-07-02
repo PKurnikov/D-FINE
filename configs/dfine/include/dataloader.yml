@@ -1,77 +1,224 @@
+dataloaders:
+  - name: train_dataloader
+    role: train
+    dataset:
+      transforms:
+        ops:
+          - {type: RandomPhotometricDistort, p: 0.5}
+          - {type: RandomZoomOut, fill: 0}
+          - {type: RandomIoUCrop, p: 0.8}
+          - {type: SanitizeBoundingBoxes, min_size: 1}
+          - {type: RandomHorizontalFlip}
+          - {type: Resize, size: [576, 1024]}
+          - {type: SanitizeBoundingBoxes, min_size: 1}
+          - {type: ConvertPILImage, dtype: 'float32', scale: True}
+          - {type: ConvertBoxes, fmt: 'cxcywh', normalize: True}
+        policy:
+          name: stop_epoch
+          epoch: 72
+          ops: ['RandomPhotometricDistort', 'RandomZoomOut', 'RandomIoUCrop']
+    collate_fn:
+      type: BatchImageCollateFunction
+      base_size: 576
+      base_size_repeat: 3
+      stop_epoch: 72
+    shuffle: True
+    total_batch_size: 4
+    num_workers: 4
 
-train_dataloader:
-  dataset:
-    transforms:
-      ops:
-        - {type: RandomPhotometricDistort, p: 0.5}
-        - {type: RandomZoomOut, fill: 0}
-        - {type: RandomIoUCrop, p: 0.8}
-        - {type: SanitizeBoundingBoxes, min_size: 1}
-        - {type: RandomHorizontalFlip}
-        - {type: Resize, size: [576, 1024], }
-        - {type: SanitizeBoundingBoxes, min_size: 1}
-        - {type: ConvertPILImage, dtype: 'float32', scale: True}
-        - {type: ConvertBoxes, fmt: 'cxcywh', normalize: True}
-      policy:
-        name: stop_epoch
-        epoch: 72 # epoch in [71, ~) stop `ops`
-        ops: ['RandomPhotometricDistort', 'RandomZoomOut', 'RandomIoUCrop']
+  - name: train_dataloader_tractor_plowed
+    role: train
+    dataset:
+      transforms:
+        ops:
+          - {type: RandomPhotometricDistort, p: 0.15}
+          - {type: RandomHorizontalFlip}
+          - {type: RandomCrop, p: 0.25, size: [540, 540]}
+          - {type: Resize, size: [576, 1024]}
+          - {type: ConvertPILImage, dtype: 'float32', scale: True}
+        policy:
+          name: stop_epoch
+          epoch: 72
+          ops: ['RandomPhotometricDistort', 'RandomZoomOut', 'RandomIoUCrop']
+    collate_fn:
+      type: BatchImageCollateFunction
+      base_size: 576
+      base_size_repeat: 3
+      stop_epoch: 72
+    shuffle: True
+    total_batch_size: 4
+    num_workers: 4
 
-  collate_fn:
-    type: BatchImageCollateFunction
-    base_size: 576 #640
-    base_size_repeat: 3
-    stop_epoch: 72 # epoch in [72, ~) stop `multiscales`
+  - name: train_dataloader_agro_drivable
+    role: train
+    dataset:
+      transforms:
+        ops:
+          - {type: RandomPhotometricDistort, p: 0.15}
+          - {type: RandomHorizontalFlip}
+          - {type: RandomCrop, p: 0.25, size: [540, 540]}
+          - {type: Resize, size: [576, 1024]}
+          - {type: ConvertPILImage, dtype: 'float32', scale: True}
+        policy:
+          name: stop_epoch
+          epoch: 72
+          ops: ['RandomPhotometricDistort', 'RandomZoomOut', 'RandomIoUCrop']
+    collate_fn:
+      type: BatchImageCollateFunction
+      base_size: 576
+      base_size_repeat: 3
+      stop_epoch: 72
+    shuffle: True
+    total_batch_size: 4
+    num_workers: 4
 
-  shuffle: True
-  total_batch_size: 24 # total batch size equals to 32 (4 * 8)
-  num_workers: 4
+  - name: val_dataloader
+    role: val
+    dataset:
+      transforms:
+        ops:
+          - {type: Resize, size: [576, 1024]}
+          - {type: ConvertPILImage, dtype: 'float32', scale: True}
+    shuffle: False
+    total_batch_size: 8
+    num_workers: 4
 
-train_seg_dataloader:
-  dataset:
-    transforms:
-      ops:
-        - {type: RandomHorizontalFlip}
-        - {type: RandomCrop, p: 0.25, size: [540, 540]} # - {type: RandomCrop, p: 0.75, size: [540, 540]}
-        # - {type: RandomPhotometricDistort, p: 0.25} # 0.15
-        # - {type: RandomZoomOut, fill: 0}
-        # - {type: RandomIoUCrop, p: 0.8}
-        # - {type: SanitizeBoundingBoxes, min_size: 1}
-        - {type: Resize, size: [576, 1024], }
-        # - {type: SanitizeBoundingBoxes, min_size: 1}
-        - {type: ConvertPILImage, dtype: 'float32', scale: True}
-        # - {type: ConvertBoxes, fmt: 'cxcywh', normalize: True}
-      policy:
-        name: stop_epoch
-        epoch: 72 # epoch in [71, ~) stop `ops`
-        ops: ['RandomPhotometricDistort', 'RandomZoomOut', 'RandomIoUCrop']
+  - name: val_dataloader_tractor_plowed
+    role: val
+    dataset:
+      transforms:
+        ops:
+          - {type: Resize, size: [576, 1024]}
+          - {type: ConvertPILImage, dtype: 'float32', scale: True}
+    shuffle: False
+    total_batch_size: 8
+    num_workers: 4
 
-  collate_fn:
-    type: BatchImageCollateFunction
-    base_size: 576 #640
-    base_size_repeat: 3
-    stop_epoch: 72 # epoch in [72, ~) stop `multiscales`
+  - name: val_dataloader_agro_drivable
+    role: val
+    dataset:
+      transforms:
+        ops:
+          - {type: Resize, size: [576, 1024]}
+          - {type: ConvertPILImage, dtype: 'float32', scale: True}
+    shuffle: False
+    total_batch_size: 8
+    num_workers: 4
 
-  shuffle: True
-  total_batch_size: 24 # total batch size equals to 32 (4 * 8)
-  num_workers: 4
+# train_dataloader:
+#   dataset:
+#     transforms:
+#       ops:
+#         - {type: RandomPhotometricDistort, p: 0.5}
+#         - {type: RandomZoomOut, fill: 0}
+#         - {type: RandomIoUCrop, p: 0.8}
+#         - {type: SanitizeBoundingBoxes, min_size: 1}
+#         - {type: RandomHorizontalFlip}
+#         - {type: Resize, size: [576, 1024], }
+#         - {type: SanitizeBoundingBoxes, min_size: 1}
+#         - {type: ConvertPILImage, dtype: 'float32', scale: True}
+#         - {type: ConvertBoxes, fmt: 'cxcywh', normalize: True}
+#       policy:
+#         name: stop_epoch
+#         epoch: 72 # epoch in [71, ~) stop `ops`
+#         ops: ['RandomPhotometricDistort', 'RandomZoomOut', 'RandomIoUCrop']
 
-val_dataloader:
-  dataset:
-    transforms:
-      ops:
-        - {type: Resize, size: [576, 1024], }
-        - {type: ConvertPILImage, dtype: 'float32', scale: True}
-  shuffle: False
-  total_batch_size: 4
-  num_workers: 4
+#   collate_fn:
+#     type: BatchImageCollateFunction
+#     base_size: 576 #640
+#     base_size_repeat: 3
+#     stop_epoch: 72 # epoch in [72, ~) stop `multiscales`
 
-val_seg_dataloader:
-  dataset:
-    transforms:
-      ops:
-        - {type: Resize, size: [576, 1024], }
-        - {type: ConvertPILImage, dtype: 'float32', scale: True}
-  shuffle: False
-  total_batch_size: 8
-  num_workers: 4
+#   shuffle: True
+#   total_batch_size: 4 # total batch size equals to 32 (4 * 8)
+#   num_workers: 4
+
+# train_dataloader_tractor_plowed:
+#   dataset:
+#     transforms:
+#       ops:
+#         - {type: RandomPhotometricDistort, p: 0.15} # 0.15
+#         - {type: RandomHorizontalFlip}
+#         - {type: RandomCrop, p: 0.25, size: [540, 540]} # - {type: RandomCrop, p: 0.75, size: [540, 540]}
+#         # - {type: RandomPhotometricDistort, p: 0.25} # 0.15
+#         # - {type: RandomZoomOut, fill: 0}
+#         # - {type: RandomIoUCrop, p: 0.8}
+#         # - {type: SanitizeBoundingBoxes, min_size: 1}
+#         - {type: Resize, size: [576, 1024], }
+#         # - {type: SanitizeBoundingBoxes, min_size: 1}
+#         - {type: ConvertPILImage, dtype: 'float32', scale: True}
+#         # - {type: ConvertBoxes, fmt: 'cxcywh', normalize: True}
+#       policy:
+#         name: stop_epoch
+#         epoch: 72 # epoch in [71, ~) stop `ops`
+#         ops: ['RandomPhotometricDistort', 'RandomZoomOut', 'RandomIoUCrop']
+
+#   collate_fn:
+#     type: BatchImageCollateFunction
+#     base_size: 576 #640
+#     base_size_repeat: 3
+#     stop_epoch: 72 # epoch in [72, ~) stop `multiscales`
+
+#   shuffle: True
+#   total_batch_size: 4 # total batch size equals to 32 (4 * 8)
+#   num_workers: 4
+
+# train_dataloader_agro_drivable:
+#   dataset:
+#     transforms:
+#       ops:
+#         - {type: RandomPhotometricDistort, p: 0.15} # 0.15
+#         - {type: RandomHorizontalFlip}
+#         - {type: RandomCrop, p: 0.25, size: [540, 540]} # - {type: RandomCrop, p: 0.75, size: [540, 540]}
+#         # - {type: RandomPhotometricDistort, p: 0.25} # 0.15
+#         # - {type: RandomZoomOut, fill: 0}
+#         # - {type: RandomIoUCrop, p: 0.8}
+#         # - {type: SanitizeBoundingBoxes, min_size: 1}
+#         - {type: Resize, size: [576, 1024], }
+#         # - {type: SanitizeBoundingBoxes, min_size: 1}
+#         - {type: ConvertPILImage, dtype: 'float32', scale: True}
+#         # - {type: ConvertBoxes, fmt: 'cxcywh', normalize: True}
+#       policy:
+#         name: stop_epoch
+#         epoch: 72 # epoch in [71, ~) stop `ops`
+#         ops: ['RandomPhotometricDistort', 'RandomZoomOut', 'RandomIoUCrop']
+
+#   collate_fn:
+#     type: BatchImageCollateFunction
+#     base_size: 576 #640
+#     base_size_repeat: 3
+#     stop_epoch: 72 # epoch in [72, ~) stop `multiscales`
+
+#   shuffle: True
+#   total_batch_size: 4 # total batch size equals to 32 (4 * 8)
+#   num_workers: 4
+
+# val_dataloader:
+#   dataset:
+#     transforms:
+#       ops:
+#         - {type: Resize, size: [576, 1024], }
+#         - {type: ConvertPILImage, dtype: 'float32', scale: True}
+#   shuffle: False
+#   total_batch_size: 8
+#   num_workers: 4
+
+# val_dataloader_tractor_plowed:
+#   dataset:
+#     transforms:
+#       ops:
+#         - {type: Resize, size: [576, 1024], }
+#         - {type: ConvertPILImage, dtype: 'float32', scale: True}
+#   shuffle: False
+#   total_batch_size: 8
+#   num_workers: 4
+
+# val_dataloader_agro_drivable:
+#   dataset:
+#     transforms:
+#       ops:
+#         - {type: Resize, size: [576, 1024], }
+#         - {type: ConvertPILImage, dtype: 'float32', scale: True}
+#   shuffle: False
+#   total_batch_size: 8
+#   num_workers: 4

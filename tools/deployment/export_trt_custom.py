@@ -49,7 +49,7 @@ def convert_onnx_to_trt(onnx_path, engine_path, batch_size=1, precision="fp32"):
     # else:
     #     config.max_workspace_size = 2 << 30  # 2GB
 
-    config.set_memory_pool_limit(trt.MemoryPoolType.WORKSPACE, 2 << 30)  # 2GB
+    config.set_memory_pool_limit(trt.MemoryPoolType.WORKSPACE, 2 << 32)  # 2GB
 
     # for tensorrt 8
     # config.max_workspace_size = 2 << 30  # 2GB
@@ -64,12 +64,12 @@ def convert_onnx_to_trt(onnx_path, engine_path, batch_size=1, precision="fp32"):
         # config.clear_flag(trt.BuilderFlag.OBEY_PRECISION_CONSTRAINTS)
         # config.set_flag(trt.BuilderFlag.PREFER_PRECISION_CONSTRAINTS)
         
-        for layer_idx in range(network.num_layers):
-            layer = network[layer_idx]
-            if layer.type == trt.LayerType.CONVOLUTION:
-                print(layer.type)
-                layer.precision = trt.float32
-                layer.set_output_type(0, trt.float32)
+        # for layer_idx in range(network.num_layers):
+        #     layer = network[layer_idx]
+        #     if layer.type == trt.LayerType.NORMALIZATION:
+        #         print(layer.type)
+        #         layer.precision = trt.float32
+        #         layer.set_output_type(0, trt.float32)
         config.set_flag(trt.BuilderFlag.OBEY_PRECISION_CONSTRAINTS)
     # config.set_flag(trt.BuilderFlag.PREFER_PRECISION_CONSTRAINTS)
     # config.set_flag(trt.BuilderFlag.DIRECT_IO)
@@ -128,7 +128,7 @@ if __name__ == "__main__":
     parser.add_argument("--onnx", type=str, required=True, help="Path to the ONNX model file.")
     parser.add_argument("--trt", type=str, required=True, help="Path where the TensorRT engine will be saved.")
     parser.add_argument("--batch_size", type=int, default=1, help="Batch size for the engine.")
-    parser.add_argument("--precision", choices=["fp32", "fp16"], default="fp32", help="Precision mode (default: fp16)")
+    parser.add_argument("--precision", choices=["fp32", "fp16"], default="fp16", help="Precision mode (default: fp16)")
 
     args = parser.parse_args()
 

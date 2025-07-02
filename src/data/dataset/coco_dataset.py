@@ -24,23 +24,63 @@ Image.MAX_IMAGE_PIXELS = None
 __all__ = ['CocoDetection', 'SemSegmentation']
 
 
+# @register()
+# class SemSegmentation(torchvision.datasets.Cityscapes, DetDataset):
+#     __inject__ = ['transforms', ]
+    
+#     def __init__(self, img_folder, transforms, split):
+#         super(SemSegmentation, self).__init__(img_folder, split)
+#         self._transforms = transforms  
+
+#     def __getitem__(self, idx):
+#         img, target = self.load_item(idx)
+#         if self._transforms is not None:
+#             img, target, _ = self._transforms(img, target, self)
+#         return img, target
+
+#     def load_item(self, idx):
+#         image, target = super(SemSegmentation, self).__getitem__(idx)
+#         # image_id = self.ids[idx]
+#         target = {'masks': target}
+        
+#         w, h = image.size
+#         target["orig_size"] = torch.as_tensor([int(w), int(h)])
+        
+#         if 'masks' in target:
+#             target['masks'] = convert_to_tv_tensor(target['masks'], key='masks')
+            
+#         return image, target
+
 @register()
 class SemSegmentation(torchvision.datasets.Cityscapes, DetDataset):
     __inject__ = ['transforms', ]
     
-    def __init__(self, img_folder, transforms, split):
+    def __init__(self, img_folder, transforms, split, dataset_source="semseg"):
         super(SemSegmentation, self).__init__(img_folder, split)
         self._transforms = transforms  
+        self.dataset_source = dataset_source  # имя источника данных
 
     def __getitem__(self, idx):
         img, target = self.load_item(idx)
         if self._transforms is not None:
             img, target, _ = self._transforms(img, target, self)
+        
+        target['source'] = self.dataset_source  # <-- ключевое добавление
+
+        ####################
+        # Перенос класса столбы на предпоследнюю позицию
+        if self.dataset_source == 'agro_drivable':
+            mask = target['masks']
+            temp_mask = mask.clone()
+
+            target['masks'][(temp_mask == 3)] = 4
+            target['masks'][(temp_mask == 4)] = 3
+        ####################
+
         return img, target
 
     def load_item(self, idx):
         image, target = super(SemSegmentation, self).__getitem__(idx)
-        # image_id = self.ids[idx]
         target = {'masks': target}
         
         w, h = image.size

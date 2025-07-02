@@ -19,71 +19,6 @@ from ...misc.dist_utils import get_world_size, is_dist_available_and_initialized
 from .box_ops import box_cxcywh_to_xyxy, box_iou, generalized_box_iou
 from .dfine_utils import bbox2distance
 
-
-# # Adapted from BiSeNet Repository (https://github.com/ycszen/TorchSeg)
-# @register()
-# class ProbOhemCrossEntropy2d(nn.Module):
-#     def __init__(self, ignore_label, reduction='mean', thresh=0.7, min_kept=256,
-#                  down_ratio=1, weight=None):
-#         super(ProbOhemCrossEntropy2d, self).__init__()
-#         self.ignore_label = ignore_label
-#         self.thresh = float(thresh)
-#         self.min_kept = int(min_kept)
-#         self.down_ratio = down_ratio
-
-#         if weight is not None:
-#             self.criterion = torch.nn.CrossEntropyLoss(reduction=reduction,
-#                                                        weight=torch.FloatTensor(weight),
-#                                                        ignore_index=ignore_label)
-#         else:
-#             self.criterion = torch.nn.CrossEntropyLoss(reduction=reduction,
-#                                                        ignore_index=ignore_label)
-
-#     def forward(self, pred, target):
-#         # Compute all the requested losses
-#         losses = {}
-        
-#         b, c, h, w = pred.size()
-#         target = target.view(-1)
-#         valid_mask = target.ne(self.ignore_label)
-#         target = target * valid_mask.long()
-#         num_valid = valid_mask.sum()
-
-#         # if is_dist_available_and_initialized():
-#         #     torch.distributed.all_reduce(num_boxes)
-#         # num_boxes = torch.clamp(num_boxes / get_world_size(), min=1).item()
-
-#         if is_dist_available_and_initialized():
-#             # Aggregate num_valid across processes
-#             torch.distributed.all_reduce(num_valid)
-#         num_valid = torch.clamp(num_valid / get_world_size(), min=1).item()
-
-#         prob = F.softmax(pred, dim=1)
-#         prob = (prob.transpose(0, 1)).reshape(c, -1)
-
-#         if self.min_kept > num_valid:
-#             # print('Labels: {}'.format(num_valid))
-#             pass
-#         elif num_valid > 0:
-#             prob = prob.masked_fill_(~valid_mask, 1)
-#             mask_prob = prob[target, torch.arange(len(target), dtype=torch.long)]
-#             threshold = self.thresh
-#             if self.min_kept > 0:
-#                 index = mask_prob.argsort()
-#                 threshold_index = index[min(len(index), self.min_kept) - 1]
-#                 if mask_prob[threshold_index] > self.thresh:
-#                     threshold = mask_prob[threshold_index]
-#                 kept_mask = mask_prob.le(threshold)
-#                 target = target * kept_mask.long()
-#                 valid_mask = valid_mask * kept_mask
-
-#         target = target.masked_fill_(~valid_mask, self.ignore_label)
-#         target = target.view(b, h, w)
-        
-#         loss = {"ohemCrossEntropy2d": self.criterion(pred, target)}
-
-#         return loss
-
 @register()
 class DFINECriterion(nn.Module):
     """This class computes the loss for D-FINE."""
@@ -132,6 +67,9 @@ class DFINECriterion(nn.Module):
         self.ignore_label = 255
         self.thresh = float(0.7)
         self.min_kept = int(256)
+
+        # self.min_kept = int(config.batch_size // len(config.gpus) * config.image_height * config.image_width // 16)
+
         self.down_ratio = 1
         self.ce_criterion = torch.nn.CrossEntropyLoss(reduction='mean',
                                                        ignore_index=255)
@@ -153,47 +91,6 @@ class DFINECriterion(nn.Module):
         loss = loss.mean(1).sum() * src_logits.shape[1] / num_boxes
 
         return {"loss_focal": loss}
-
-    # def loss_labels_vfl(self, outputs, targets, indices, num_boxes, values=None):
-    #     assert 'pred_boxes' in outputs
-    #     idx = self._get_src_permutation_idx(indices)
-        
-    #     # Если есть матчинги, считаем IoU с GT
-    #     if values is None and any(len(src) > 0 for src, _ in indices):
-    #         src_boxes = outputs['pred_boxes'][idx]
-    #         target_boxes = torch.cat([t['boxes'][i] for t, (_, i) in zip(targets, indices)], dim=0)
-    #         ious, _ = box_iou(box_cxcywh_to_xyxy(src_boxes), box_cxcywh_to_xyxy(target_boxes))
-    #         ious = torch.diag(ious).detach()
-    #     else:
-    #         ious = torch.zeros(len(idx[0]), device=outputs['pred_logits'].device)  # Заполняем FP нулями
-        
-    #     # Получаем логиты и создаем target-матрицы
-    #     src_logits = outputs['pred_logits']
-    #     batch_size, num_queries, num_classes = src_logits.shape
-        
-    #     target_classes = torch.full((batch_size, num_queries), self.num_classes, 
-    #                                 dtype=torch.int64, device=src_logits.device)
-        
-    #     if any(len(src) > 0 for src, _ in indices):
-    #         target_classes_o = torch.cat([t["labels"][J] for t, (_, J) in zip(targets, indices)])
-    #         target_classes[idx] = target_classes_o
-        
-    #     target = F.one_hot(target_classes, num_classes=self.num_classes + 1)[..., :-1]
-
-    #     # Создаем target_score (штрафуем FP предсказания, ставя IoU = 0)
-    #     target_score_o = torch.zeros_like(target_classes, dtype=src_logits.dtype)
-    #     if any(len(src) > 0 for src, _ in indices):
-    #         target_score_o[idx] = ious.to(target_score_o.dtype)
-        
-    #     target_score = target_score_o.unsqueeze(-1) * target
-
-    #     # FP-предсказания (где не было GT) должны штрафоваться через BCE
-    #     pred_score = F.sigmoid(src_logits).detach()
-    #     weight = self.alpha * pred_score.pow(self.gamma) * (1 - target) + target_score
-
-    #     loss = F.binary_cross_entropy_with_logits(src_logits, target_score, weight=weight, reduction='none')
-    #     loss = loss.mean(1).sum() * src_logits.shape[1] / (num_boxes + 1e-6)  # избегаем деления на 0
-    #     return {'loss_vfl': loss}
 
     def loss_labels_vfl(self, outputs, targets, indices, num_boxes, values=None):
         assert "pred_boxes" in outputs
@@ -349,74 +246,16 @@ class DFINECriterion(nn.Module):
 
         return losses
 
-# def loss_ohem(self, outputs, targets, head_ids=[0, 1, 2]):
-#     assert 'pred_logits' in outputs
-#     losses = {}
 
-#     for head_id in head_ids:
-#         loss_name = f'pred_sgm_head_{head_id}'
-#         sgm_output = outputs[loss_name]
-
-#         b, c, h, w = sgm_output.size()
-
-#         # Оптимизированное создание масок
-#         masks = []
-#         for item in targets:
-#             mask = item['masks']
-#             if mask.numel() > 0:  # Проверка на непустую маску
-#                 masks.append(torch.argmax(mask, dim=0))
-#             else:
-#                 # Добавляем тензор игнорируемых меток, используя zeros_like
-#                 masks.append(torch.full((h, w), self.ignore_label, dtype=torch.long, device=sgm_output.device))
-
-#         # Преобразование масок в тензор
-#         target = torch.stack(masks, dim=0)  # B x H x W
-#         target = target.view(-1)
-
-#         valid_mask = target.ne(self.ignore_label)
-#         num_valid = valid_mask.sum()
-
-#         if is_dist_available_and_initialized():
-#             # Синхронизация числа валидных элементов между процессами
-#             torch.distributed.all_reduce(num_valid)
-#         num_valid = torch.clamp(num_valid / get_world_size(), min=1).item()
-
-#         # Преобразование вероятностей
-#         prob = F.softmax(sgm_output, dim=1)
-#         prob = prob.flatten(2)  # Преобразуем в B x C x (H*W)
-#         prob = prob.permute(1, 0, 2).reshape(c, -1)  # C x (B*H*W)
-
-#         if num_valid > 0:
-#             prob = prob.masked_fill(~valid_mask, 1)  # Убираем некорректные значения
-#             mask_prob = prob[target, torch.arange(len(target), dtype=torch.long)]
-#             threshold = self.thresh
-
-#             if self.min_kept > 0:
-#                 # Выбор порога через top-k
-#                 _, topk_indices = torch.topk(mask_prob, k=min(len(mask_prob), self.min_kept), largest=False)
-#                 if mask_prob[topk_indices[-1]] > self.thresh:
-#                     threshold = mask_prob[topk_indices[-1]]
-#                 valid_mask &= mask_prob <= threshold
-
-#         # Обновление target с учётом валидной маски
-#         target = target.masked_fill(~valid_mask, self.ignore_label)
-#         target = target.view(b, h, w)
-
-#         # Вычисление функции потерь
-#         losses[loss_name] = self.ce_criterion(sgm_output, target)
-
-#     return losses
-
-
-    def loss_ohem(self, outputs, targets, head_ids = [0, 1, 2]):
+    def loss_ohem(self, outputs, targets, indices=None, num_boxes=None):
         # assert 'pred_logits' in outputs
         losses = {}
                 
-        for head_id in head_ids:
-            loss_name = 'pred_sgm_head_'+str(head_id)
-            sgm_output = outputs[loss_name]
-            # sgm_output = torch.nn.functional.interpolate(sgm_output, mode="bilinear", size=(640, 640), align_corners=True)
+        for key, sgm_output in outputs.items():  # правильно итерироваться по dict
             b, c, h, w = sgm_output.size()
+            
+            local_batch_size = 24 // get_world_size()
+            self.min_kept = int(local_batch_size * h * w // 16)
             
             # Применение argmax только для непустых масок
             masks = []
@@ -424,9 +263,9 @@ class DFINECriterion(nn.Module):
                 if item['masks'].numel() > 0:  # Проверка на пустой тензор                
                     # masks.append(item['masks'])
                     masks.append(item['masks'])
-                else:
-                    # Если маска пуста, добавляем тензор ignore_label
-                    masks.append(torch.ones(576, 1024, dtype=torch.long, device=sgm_output.device) * self.ignore_label)
+                # else:
+                #     # Если маска пуста, добавляем тензор ignore_label
+                #     masks.append(torch.ones(576, 1024, dtype=torch.long, device=sgm_output.device) * self.ignore_label)
 
             # Объединение масок в тензор
             target = torch.cat(masks, dim=0)  # B x H x W
@@ -438,10 +277,10 @@ class DFINECriterion(nn.Module):
             target = target * valid_mask.long()
             num_valid = valid_mask.sum()
 
-            if is_dist_available_and_initialized():
-                # Aggregate num_valid across processes
-                torch.distributed.all_reduce(num_valid)
-            num_valid = torch.clamp(num_valid / get_world_size(), min=1).item()
+            # if is_dist_available_and_initialized():
+            #     # Aggregate num_valid across processes
+            #     torch.distributed.all_reduce(num_valid)
+            # num_valid = torch.clamp(num_valid / get_world_size(), min=1).item()
 
             prob = F.softmax(sgm_output, dim=1)
             prob = (prob.transpose(0, 1)).reshape(c, -1)
@@ -465,7 +304,7 @@ class DFINECriterion(nn.Module):
             target = target.masked_fill_(~valid_mask, self.ignore_label)
             target = target.view(b, h, w)
             
-            losses[loss_name] = self.ce_criterion(sgm_output.to(torch.float32), target)
+            losses[key] = self.ce_criterion(sgm_output.to(torch.float32), target)
             
         return losses
         
@@ -510,12 +349,13 @@ class DFINECriterion(nn.Module):
         self.own_targets, self.own_targets_dn = None, None
         self.num_pos, self.num_neg = None, None
 
-    def get_loss(self, loss, outputs, targets, indices, num_boxes, **kwargs):
+    def get_loss(self, loss, outputs, targets, indices=None, num_boxes=None, **kwargs):
         loss_map = {
             "boxes": self.loss_boxes,
             "focal": self.loss_labels_focal,
             "vfl": self.loss_labels_vfl,
             "local": self.loss_local,
+            "segm": self.loss_ohem,
         }
         assert loss in loss_map, f"do you really want to compute {loss} loss?"
         return loss_map[loss](outputs, targets, indices, num_boxes, **kwargs)
@@ -590,15 +430,20 @@ class DFINECriterion(nn.Module):
             l_dict = {k: l_dict[k] * self.weight_dict[k] for k in l_dict if k in self.weight_dict}
             losses.update(l_dict)
 
-        if 'pred_sgm_head_0' in outputs:
-            # Найти индексы элементов, где есть 'bbox'
-            indices_with_masks = [i for i, t in enumerate(targets) if 'masks' in t]
-            # Создать новый список targets, содержащий только элементы с 'bbox'
-            filtered_targets_with_masks = [targets[i] for i in indices_with_masks]
-            l_dict = self.loss_ohem(outputs, targets=filtered_targets_with_masks)
+        for key, pred in outputs.items():
+            if not key.startswith("pred_sgm_head_"):
+                continue
+
+            matched_targets = [t for t in targets if t.get("source") is not None and t.get("source") in key]
+
+            if not matched_targets:
+                continue  # Пропустить, если в этом батче нет нужного датасета
+
+            l_dict = self.loss_ohem({key: pred}, targets=matched_targets)
             l_dict = {k: l_dict[k] * self.weight_dict[k] for k in l_dict if k in self.weight_dict}
+
             losses.update(l_dict)
-            
+
         # In case of auxiliary losses, we repeat this process with the output of each intermediate layer.
         if "aux_outputs" in outputs:
             for i, aux_outputs in enumerate(outputs["aux_outputs"]):

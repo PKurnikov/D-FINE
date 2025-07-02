@@ -129,8 +129,27 @@ def main(
         onnx.save(onnx_model_simplify, output_file)
         print(f"Simplify onnx model {check}...")
 
+def find_files(catalog, extensions):
+    """
+    Самый быстрый вариант поиска файлов с расширениями в каталоге и подкаталогах.
+    """
+    return [str(p) for ext in extensions for p in Path(catalog).rglob(f'*{ext}')]
 
 if __name__ == "__main__":
+
+
+    # import shutil
+
+    # with open('/data1/Datasets/shared_datasets/layer_3_lists/val.txt', 'r') as fp:
+    #     for line in fp:
+    #         print(line.rstrip('\n'))
+    #         src_path, gt_path = line.split('\t')
+    #         src_path = os.path.join('/data1/Datasets/shared_datasets/layer_3_lists', src_path)
+    #         gt_path = os.path.join('/data1/Datasets/shared_datasets/layer_3_lists', gt_path[:-1])
+
+    #         shutil.copy(src_path, os.path.join('/data/Datasets/tractor_shared/segm/agro_drivable/leftImg8bit/val/Agro', os.path.basename(src_path)))
+    #         shutil.copy(gt_path, os.path.join('/data/Datasets/tractor_shared/segm/agro_drivable/gtFine/val/Agro', os.path.basename(gt_path)))
+
     import argparse
 
     parser = argparse.ArgumentParser()

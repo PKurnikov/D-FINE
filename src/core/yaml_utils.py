@@ -16,6 +16,7 @@ __all__ = [
     "merge_config",
     "merge_dict",
     "parse_cli",
+    "flatten_global_cfg"
 ]
 
 
@@ -65,6 +66,13 @@ def merge_dict(dct, another_dct, inplace=True) -> Dict:
 
     return _merge(dct, another_dct)
 
+# TODO: реализовать для остальных множественных структур
+def flatten_global_cfg(global_cfg) -> Dict:
+        flat_cfg = dict(global_cfg)  # копия
+        for dl_cfg in global_cfg.get('dataloaders', []):
+            name = dl_cfg.get('name')
+            flat_cfg[name] = dl_cfg['dataloader']
+        return flat_cfg
 
 def dictify(s: str, v: Any) -> Dict:
     if "." not in s:

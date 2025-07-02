@@ -316,7 +316,7 @@ class ASPP(nn.Module):
 @register()
 class BiSeNetDecoder(nn.Module):
     def __init__(self, out_planes, in_planes,
-                 norm_layer=nn.BatchNorm2d):
+                 norm_layer=nn.BatchNorm2d, head_configs=None):
         super(BiSeNetDecoder, self).__init__()
 
         conv_channels = [256, 256] # 128 for small_dfine  [p // 4 for p in in_planes]  # например, [384, 192]
@@ -338,19 +338,53 @@ class BiSeNetDecoder(nn.Module):
                               has_bn=True, norm_layer=norm_layer,
                               has_relu=True, has_bias=False)]
 
-        heads = [BiSeNetHead(conv_channels[0], out_planes, 16,
-                             True, norm_layer),
-                 BiSeNetHead(conv_channels[0], out_planes, 8,
-                             True, norm_layer),
-                 BiSeNetHead(conv_channels[0] * 2, out_planes, 8,
-                             False, norm_layer)]
+        # heads = [BiSeNetHead(conv_channels[0], out_planes, 16,
+        #                      True, norm_layer),
+        #          BiSeNetHead(conv_channels[0], out_planes, 8,
+        #                      True, norm_layer),
+        #          BiSeNetHead(conv_channels[0] * 2, out_planes, 8,
+        #                      False, norm_layer)]
 
         self.ffm = FeatureFusion(conv_channels[0] * 2, conv_channels[0] * 2,
                                  4, norm_layer)
         self.arms = nn.ModuleList(arms)
         self.refines = nn.ModuleList(refines)
-        self.heads = nn.ModuleList(heads)
+        # self.heads = nn.ModuleList(heads)
 
+        # Механизм инициализации сегментационных голов: aux1, aux2, main
+        self.heads = nn.ModuleDict()
+
+        for cfg in head_configs:
+            output_name = cfg['name']
+            out_planes = cfg['out_planes']
+            self.heads[output_name] = nn.ModuleDict()
+            self.heads[output_name]['aux1'] = BiSeNetHead(
+                    in_planes=conv_channels[0],
+                    out_planes=out_planes,
+                    scale=16,
+                    is_aux=True,
+                    norm_layer=norm_layer)
+            self.heads[output_name]['aux2'] = BiSeNetHead(
+                    in_planes=conv_channels[0],
+                    out_planes=out_planes,
+                    scale=8,
+                    is_aux=True,
+                    norm_layer=norm_layer)
+            self.heads[output_name]['main'] = BiSeNetHead(
+                    in_planes=conv_channels[0] * 2,
+                    out_planes=out_planes,
+                    scale=8,
+                    is_aux=False,
+                    norm_layer=norm_layer)
+
+            # for head_name, cfg in output_heads.items():
+            #     self.heads[output_name][head_name] = BiSeNetHead(
+            #         in_planes=cfg.get('in_planes', conv_channels[0]),
+            #         out_planes=cfg['out_planes'],
+            #         scale=cfg.get('scale', 8),
+            #         is_aux=cfg.get('aux', False),
+            #         norm_layer=norm_layer)
+            
         # self.reduce_layers = nn.ModuleList([
         #     ConvBnRelu(in_planes[1], conv_channels[1], 1, 1, 0,
         #             has_bn=True, has_relu=True, has_bias=False, norm_layer=norm_layer),
@@ -358,7 +392,7 @@ class BiSeNetDecoder(nn.Module):
         #             has_bn=True, has_relu=True, has_bias=False, norm_layer=norm_layer)
         # ])
 
-    def forward(self, spatial_out, context_blocks):
+    def forward(self, spatial_out, context_blocks, targets=None):
         context_blocks.reverse()
 
         global_context = self.global_context(context_blocks[0])
@@ -386,8 +420,33 @@ class BiSeNetDecoder(nn.Module):
 
         pred_out.append(concate_fm)
 
-        h_0 = self.heads[0](pred_out[0])
-        h_1 = self.heads[1](pred_out[1])
-        h_2 = self.heads[-1](pred_out[2])
+        outputs = {}
+        for out_name, heads_dict in self.heads.items():
+            for i, (head_name, head) in enumerate(heads_dict.items()):
+                if targets is not None:
+                    # получаем индекс тензора под необходимую голову
+                    # feature_map_idx = next((i for i, target in enumerate(targets) if target.get('source') == out_name), -1)
+                    # feature_map = pred_out[i][feature_map_idx].unsqueeze(0)  # добавляем batch dim
+
+                    feature_map_indices = [j for j, target in enumerate(targets) if target.get('source') == out_name]
+
+                    if feature_map_indices:
+                        # собрать feature maps по найденным индексам
+                        feature_maps = [pred_out[i][idx].unsqueeze(0) for idx in feature_map_indices]  # добавляем batch dim
+                        feature_map = torch.cat(feature_maps, dim=0)  # объединяем в батч
+
+                else:
+                    # Если targets нет, используем весь выход (eval режим)
+                    feature_map = pred_out[i] 
+
+                key = f"pred_sgm_head_{out_name}_{head_name}"
+                outputs[key] = head(feature_map)
+
+        return outputs
+
+
+        # h_0 = self.heads[0](pred_out[0])
+        # h_1 = self.heads[1](pred_out[1])
+        # h_2 = self.heads[-1](pred_out[2])
         
-        return {"pred_sgm_head_0":h_0, "pred_sgm_head_1":h_1, "pred_sgm_head_2":h_2}
+        # return {"pred_sgm_head_0":h_0, "pred_sgm_head_1":h_1, "pred_sgm_head_2":h_2}

@@ -4,7 +4,7 @@ Copyright(c) 2023 lyuwenyu. All Rights Reserved.
 """
 
 from pathlib import Path
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Any, Optional
 
 import torch
 import torch.nn as nn
@@ -18,6 +18,7 @@ __all__ = [
     "BaseConfig",
 ]
 
+BestCriterionConfig = Dict[str, Any]
 
 class BaseConfig(object):
     # TODO property
@@ -31,20 +32,20 @@ class BaseConfig(object):
         self._model :nn.Module = None
         self._postprocessor :nn.Module = None
         self._criterion :nn.Module = None
-        # self._sgm_criterion :nn.Module = None
         self._optimizer :Optimizer = None
         self._lr_scheduler :LRScheduler = None
         self._lr_warmup_scheduler: LRScheduler = None
-        self._train_dataloader :DataLoader = None
-        self._train_seg_dataloader :DataLoader = None
-        self._val_dataloader :DataLoader = None
-        self._val_seg_dataloader :DataLoader = None
+        self._train_dataloaders :List[DataLoader] = None
+        self._val_dataloaders :List[DataLoader] = None
         self._ema :nn.Module = None
         self._scaler :GradScaler = None
-        self._train_dataset :Dataset = None
-        self._val_dataset :Dataset = None
+        self._train_datasets :List[Dataset] = None
+        self._val_datasets :List[Dataset] = None
         self._collate_fn :Callable = None
-        self._evaluator :Callable[[nn.Module, DataLoader, str], ] = None
+        self._best_criterion: Optional[BestCriterionConfig] = None
+        self._evaluators: Optional[Dict[str, Any]] = None
+        self._postprocessors: Optional[Dict[str, Any]] = None
+
         self._writer: SummaryWriter = None
 
         # dataset
@@ -135,80 +136,42 @@ class BaseConfig(object):
         self._lr_warmup_scheduler = m
 
     @property
-    def train_dataloader(self) -> DataLoader:
-        if self._train_dataloader is None and self.train_dataset is not None:
-            loader = DataLoader(
-                self.train_dataset,
-                batch_size=self.train_batch_size,
-                num_workers=self.num_workers,
-                collate_fn=self.collate_fn,
-                shuffle=self.train_shuffle,
-            )
-            loader.shuffle = self.train_shuffle
-            self._train_dataloader = loader
+    def train_dataloaders(self) -> List[DataLoader]:
+        if not self._train_dataloaders and self.train_datasets:
+            self._train_dataloaders = [
+                DataLoader(
+                    ds,
+                    batch_size=self.train_batch_size,
+                    num_workers=self.num_workers,
+                    collate_fn=self.collate_fn,
+                    shuffle=self.train_shuffle,
+                )
+                for ds in self.train_datasets
+            ]
+        return self._train_dataloaders
 
-        return self._train_dataloader
-
-    @train_dataloader.setter
-    def train_dataloader(self, loader):
-        self._train_dataloader = loader
-
-    @property
-    def train_seg_dataloader(self) -> DataLoader:
-        if self._train_seg_dataloader is None and self.train_seg_dataset is not None:
-            loader = DataLoader(self.train_seg_dataset,
-                                batch_size=self.train_batch_size,
-                                num_workers=self.num_workers,
-                                collate_fn=self.collate_fn,
-                                shuffle=self.train_shuffle, )
-            loader.shuffle = self.train_shuffle
-            self._train_seg_dataloader = loader
-
-        return self._train_seg_dataloader
-
-    @train_seg_dataloader.setter
-    def train_seg_dataloader(self, loader):
-        self._train_seg_dataloader = loader
+    @train_dataloaders.setter
+    def train_dataloaders(self, loaders: List[DataLoader]):
+        self._train_dataloaders = loaders
 
     @property
-    def val_dataloader(self) -> DataLoader:
-        if self._val_dataloader is None and self.val_dataset is not None:
-            loader = DataLoader(
-                self.val_dataset,
-                batch_size=self.val_batch_size,
-                num_workers=self.num_workers,
-                drop_last=False,
-                collate_fn=self.collate_fn,
-                shuffle=self.val_shuffle,
-                persistent_workers=True,
-            )
-            loader.shuffle = self.val_shuffle
-            self._val_dataloader = loader
+    def val_dataloaders(self) -> List[DataLoader]:
+        if not self._val_dataloaders and self.val_datasets:
+            self._val_dataloaders = [
+                DataLoader(
+                    ds,
+                    batch_size=self.val_batch_size,
+                    num_workers=self.num_workers,
+                    collate_fn=self.collate_fn,
+                    shuffle=self.val_shuffle,
+                )
+                for ds in self.val_datasets
+            ]
+        return self._val_dataloaders
 
-        return self._val_dataloader
-
-    @val_dataloader.setter
-    def val_dataloader(self, loader):
-        self._val_dataloader = loader
-
-    @property
-    def val_seg_dataloader(self) -> DataLoader:
-        if self._val_seg_dataloader is None and self.val_seg_dataset is not None:
-            loader = DataLoader(self.val_seg_dataset,
-                                batch_size=self.val_batch_size,
-                                num_workers=self.num_workers,
-                                drop_last=False,
-                                collate_fn=self.collate_fn,
-                                shuffle=self.val_shuffle,
-                                persistent_workers=True)
-            loader.shuffle = self.val_shuffle
-            self._val_seg_dataloader = loader
-
-        return self._val_seg_dataloader
-
-    @val_seg_dataloader.setter
-    def val_seg_dataloader(self, loader):
-        self._val_seg_dataloader = loader
+    @val_dataloaders.setter
+    def val_dataloaders(self, loaders: List[DataLoader]):
+        self._val_dataloaders = loaders
 
     @property
     def ema(self, ) -> nn.Module:
@@ -280,41 +243,32 @@ class BaseConfig(object):
         assert isinstance(batch_size, int), "batch_size must be int"
         self._val_batch_size = batch_size
 
-    @property
-    def train_dataset(self) -> Dataset:
-        return self._train_dataset
+    # @property
+    # def train_dataset(self) -> Dataset:
+    #     return self._train_dataset
 
-    @train_dataset.setter
-    def train_dataset(self, dataset):
-        assert isinstance(dataset, Dataset), f"{type(dataset)} must be Dataset"
-        self._train_dataset = dataset
-
-    @property
-    def train_seg_dataset(self) -> Dataset:
-        return self._train_seg_dataset
-
-    @train_seg_dataset.setter
-    def train_seg_dataset(self, dataset):
-        assert isinstance(dataset, Dataset), f'{type(dataset)} must be Dataset'
-        self._train_seg_dataset = dataset
+    # @train_dataset.setter
+    # def train_dataset(self, dataset):
+    #     assert isinstance(dataset, Dataset), f"{type(dataset)} must be Dataset"
+    #     self._train_dataset = dataset
 
     @property
-    def val_dataset(self) -> Dataset:
-        return self._val_dataset
+    def train_datasets(self) -> List[Dataset]:
+        return self._train_datasets
 
-    @val_dataset.setter
-    def val_dataset(self, dataset):
-        assert isinstance(dataset, Dataset), f"{type(dataset)} must be Dataset"
-        self._val_dataset = dataset
+    @train_datasets.setter
+    def train_datasets(self, datasets: List[Dataset]):
+        assert all(isinstance(ds, Dataset) for ds in datasets), "All items must be torch Datasets"
+        self._train_datasets = datasets
 
     @property
-    def val_seg_dataset(self) -> Dataset:
-        return self._val_seg_dataset
+    def val_datasets(self) -> List[Dataset]:
+        return self._val_datasets
 
-    @val_seg_dataset.setter
-    def val_seg_dataset(self, dataset):
-        assert isinstance(dataset, Dataset), f'{type(dataset)} must be Dataset'
-        self._val_seg_dataset = dataset
+    @val_datasets.setter
+    def val_datasets(self, datasets: List[Dataset]):
+        assert all(isinstance(ds, Dataset) for ds in datasets), "All items must be torch Datasets"
+        self._val_datasets = datasets
 
     @property
     def collate_fn(self) -> Callable:
@@ -326,13 +280,42 @@ class BaseConfig(object):
         self._collate_fn = fn
 
     @property
-    def evaluator(self) -> Callable:
-        return self._evaluator
+    def evaluators(self) -> dict:
+        return self._evaluators  # это словарь evaluators
 
-    @evaluator.setter
-    def evaluator(self, fn):
-        assert isinstance(fn, Callable), f"{type(fn)} must be Callable"
-        self._evaluator = fn
+    @evaluators.setter
+    def evaluators(self, evaluators_dict):
+        assert isinstance(evaluators_dict, dict), f"{type(evaluators_dict)} must be dict"
+        self._evaluator = evaluators_dict
+
+    # @property
+    # def best_criterion(self) -> BestCriterionConfig:
+    @property
+    def best_criterion(self) -> BestCriterionConfig:
+        if self._best_criterion is None:
+            if "best_criterion" not in self.yaml_cfg:
+                raise ValueError("Missing 'best_criterion' config in YAML.")
+            cfg = self.yaml_cfg["best_criterion"]
+
+            required_keys = ["dataloader", "evaluator", "metric_index", "mode"]
+            for key in required_keys:
+                if key not in cfg:
+                    raise ValueError(f"Missing key '{key}' in best_criterion config.")
+
+            if cfg["mode"] not in ["min", "max"]:
+                raise ValueError("best_criterion 'mode' must be 'min' or 'max'.")
+
+            self._best_criterion = cfg  # кэшируем результат
+        return self._best_criterion
+
+    @best_criterion.setter
+    def best_criterion(self, value):
+        # Валидация при ручной установке
+        required_keys = ["dataloader", "evaluator", "metric_index", "mode"]
+        for key in required_keys:
+            if key not in value:
+                raise ValueError(f"Missing key '{key}' in best_criterion config.")
+        self._best_criterion = value
 
     @property
     def writer(self) -> SummaryWriter:

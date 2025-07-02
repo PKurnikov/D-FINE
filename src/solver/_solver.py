@@ -66,8 +66,9 @@ class BaseSolver(object):
         )
 
         self.criterion = self.to(cfg.criterion, device)
-        # self.sgm_criterion = 
         self.postprocessor = self.to(cfg.postprocessor, device)
+
+        self.postprocessors = [self.to(pp_cfg, device) for pp_cfg in cfg.postprocessors]
 
         self.ema = self.to(cfg.ema, device)
         self.scaler = cfg.scaler
@@ -100,25 +101,30 @@ class BaseSolver(object):
         self.optimizer = self.cfg.optimizer
         self.lr_scheduler = self.cfg.lr_scheduler
         self.lr_warmup_scheduler = self.cfg.lr_warmup_scheduler
+        self.best_criterion = self.cfg.best_criterion
 
-        self.train_dataloader = dist_utils.warp_loader(
-            self.cfg.train_dataloader, shuffle=self.cfg.train_dataloader.shuffle
-        )
+        # self.train_dataloader = dist_utils.warp_loader(
+        #     self.cfg.train_dataloaders, shuffle=self.cfg.train_dataloaders.shuffle
+        # )
         
-        self.train_seg_dataloader = dist_utils.warp_loader(
-            self.cfg.train_seg_dataloader, shuffle=self.cfg.train_seg_dataloader.shuffle
-        )
+        # self.train_seg_dataloader = dist_utils.warp_loader(
+        #     self.cfg.train_seg_dataloader, shuffle=self.cfg.train_seg_dataloader.shuffle
+        # )
         
-        self.val_dataloader = dist_utils.warp_loader(
-            self.cfg.val_dataloader, shuffle=self.cfg.val_dataloader.shuffle
-        )
+        self.train_dataloaders = [
+            dist_utils.warp_loader(dataloader, shuffle=dataloader.shuffle)
+            for dataloader in self.cfg.train_dataloaders
+        ]
 
-        self.val_seg_dataloader = dist_utils.warp_loader(
-            self.cfg.val_seg_dataloader, shuffle=self.cfg.val_seg_dataloader.shuffle
-        )
+        self.val_dataloaders = [
+            dist_utils.warp_loader(dataloader, shuffle=dataloader.shuffle)
+            for dataloader in self.cfg.val_dataloaders
+        ]
 
-        self.evaluator = self.cfg.evaluator
-
+        self.evaluators = self.cfg.evaluators
+        # postprocessors для evaluators
+        self.postprocessors = self.cfg._postprocessors
+        
         # NOTE: Instantiating order
         if self.cfg.resume:
             print(f"Resume checkpoint from {self.cfg.resume}")
@@ -127,15 +133,14 @@ class BaseSolver(object):
     def eval(self):
         self._setup()
 
-        self.val_dataloader = dist_utils.warp_loader(
-            self.cfg.val_dataloader, shuffle=self.cfg.val_dataloader.shuffle
-        )
+        self.val_dataloaders = [
+            dist_utils.warp_loader(dataloader, shuffle=dataloader.shuffle)
+            for dataloader in self.cfg.val_dataloaders
+        ]
 
-        self.val_seg_dataloader = dist_utils.warp_loader(
-            self.cfg.val_seg_dataloader, shuffle=self.cfg.val_seg_dataloader.shuffle
-        )
-
-        self.evaluator = self.cfg.evaluator
+        self.evaluators = self.cfg.evaluators
+        # postprocessors для evaluators
+        self.postprocessors = self.cfg._postprocessors
 
         if self.cfg.resume:
             print(f"Resume checkpoint from {self.cfg.resume}")

@@ -37,22 +37,18 @@ class DFINE(nn.Module):
         return any('boxes' in t for t in targets)
 
     def forward(self, x, targets=None, det_mode=2):
-        # x = self.backbone(x)
-        # x = self.encoder(x)
-        # x = self.decoder(x, targets)
-
-        # return x
-
         if (targets is None):
             indices_with_masks = list(range(x.shape[0]))
             indices_with_bbox = list(range(x.shape[0]))
-            filtered_targets = None
+            targets_with_bbox = None
+            targets_with_masks = None
         else:
             # Найти индексы элементов, где есть 'masks'
             indices_with_masks = [i for i, t in enumerate(targets) if 'masks' in t]
             # Найти индексы элементов, где есть 'bbox'
             indices_with_bbox = [i for i, t in enumerate(targets) if 'boxes' in t]
-            filtered_targets = [targets[i] for i in indices_with_bbox]
+            targets_with_bbox = [targets[i] for i in indices_with_bbox]
+            targets_with_masks = [targets[i] for i in indices_with_masks]
        
         # Создать новый тензор x по выбранным индексам
         x_with_masks = x[indices_with_masks]    
@@ -66,7 +62,7 @@ class DFINE(nn.Module):
         if det_mode > 0:
             # Создать новый тензор x по выбранным индексам
             x_backbon_segm = [v_[indices_with_masks] for v_ in x]
-            x_sgm = self.sgm_decoder(x_spatial, x_backbon_segm)
+            x_sgm = self.sgm_decoder(x_spatial, x_backbon_segm, targets_with_masks)
         
         # x.reverse()
         
@@ -77,7 +73,7 @@ class DFINE(nn.Module):
         
         # Создать новый список targets, содержащий только элементы с 'bbox'
         # filtered_targets = [targets[i] for i in indices_with_bbox]
-        filtered_x = self.decoder(filtered_x, filtered_targets)
+        filtered_x = self.decoder(filtered_x, targets_with_bbox)
         
         # return filtered_x
         

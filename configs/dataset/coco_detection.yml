@@ -1,74 +1,270 @@
-task: detection
-
-evaluator:
-  type: CocoEvaluator
-  iou_types: ['bbox'] # , 'segm'
+task: multitask
+# task: detection
 
 num_classes: 4 #80 #for COCO # 4
 remap_mscoco_category: True
 
-train_dataloader:
-  type: DataLoader
-  dataset:
-    type: CocoDetection
-    img_folder: data/COCO2017/train2017/
-    ann_file: data/COCO2017/annotations/instances_train2017.json #instances_train2017
-    return_masks: False #False
-    transforms:
-      type: Compose
-      ops: ~
-  shuffle: True
-  num_workers: 4
-  drop_last: True
-  collate_fn:
-    type: BatchImageCollateFunction
+# evaluator:
+#   type: CocoEvaluator
+#   iou_types: ['bbox'] # , 'segm'
 
-train_seg_dataloader:
-  type: DataLoader
-  dataset:
-    type: SemSegmentation
-    img_folder: data/KROMKA/
-    split: "train"
-    # ann_file: data/COCO2017/annotations/instances_train2017.json #instances_train2017
-    # return_masks: True #False
-    transforms:
-      type: Compose
-      ops: ~
-  shuffle: True
-  num_workers: 4
-  drop_last: True
-  collate_fn:
-    type: BatchImageCollateFunction
 
-val_dataloader:
-  type: DataLoader
-  dataset:
-    type: CocoDetection
-    img_folder: data/COCO2017/val2017/
-    ann_file: data/COCO2017/annotations/instances_val2017.json #instances_val2017
-    return_masks: False #False
-    transforms:
-      type: Compose
-      ops: ~
-  shuffle: False
-  num_workers: 4
-  drop_last: False
-  collate_fn:
-    type: BatchImageCollateFunction
+# dataloaders = [
+#     dict(
+#         name='train_dataloader',
+#         params=dict(
+#             collate_fn=dict(
+#                 stop_epoch=48,
+#                 ema_restart_decay=0.9999,
+#                 base_size_repeat=6
+#             )
+#         )
+#     )
+# ]
 
-val_seg_dataloader:
-  type: DataLoader
-  dataset:
-    type: SemSegmentation
-    img_folder: data/KROMKA/
-    split: "val"
-    # ann_file: data/COCO2017/annotations/instances_val2017.json #instances_val2017
-    # return_masks: False #False
-    transforms:
-      type: Compose
-      ops: ~
-  shuffle: False
-  num_workers: 4
-  drop_last: False
-  collate_fn:
-    type: BatchImageCollateFunction
+
+dataloaders:
+  - name: train_dataloader
+    role: train
+    evaluator:
+      type: CocoEvaluator
+      iou_types: ['bbox']
+    params:
+      type: DataLoader
+      dataset:
+        type: CocoDetection
+        img_folder: data/COCO2017/train2017/
+        ann_file: data/COCO2017/annotations/instances_train2017.json #instances_train2017
+        return_masks: False
+        transforms:
+          type: Compose
+          ops: []
+      shuffle: False
+      num_workers: 4
+      drop_last: False
+      collate_fn:
+        type: BatchImageCollateFunction
+
+  - name: train_dataloader_tractor_plowed
+    role: train
+    evaluator:
+      type: SegmentationEvaluator
+      metric: mIoU  # пример метрики для сегментации
+    params:
+      type: DataLoader
+      dataset:
+        type: SemSegmentation
+        img_folder: /data/Datasets/tractor_shared/segm/tractor_plowed/
+        split: "train"
+        dataset_source: "tractor_plowed"
+        transforms:
+          type: Compose
+          ops: ~
+      shuffle: False
+      num_workers: 4
+      drop_last: False
+      collate_fn:
+        type: BatchImageCollateFunction
+
+  - name: train_dataloader_agro_drivable
+    role: train
+    evaluator:
+      type: SegmentationEvaluator
+      metric: mIoU  # пример метрики для сегментации
+    params:
+      type: DataLoader
+      dataset:
+        type: SemSegmentation
+        img_folder: /data/Datasets/tractor_shared/segm/agro_drivable/
+        split: "train"
+        dataset_source: "agro_drivable"
+        transforms:
+          type: Compose
+          ops: ~
+      shuffle: False
+      num_workers: 4
+      drop_last: False
+      collate_fn:
+        type: BatchImageCollateFunction
+
+  - name: val_dataloader
+    role: val
+    evaluator:
+      type: CocoEvaluator
+      iou_types: ['bbox']
+    params:
+      type: DataLoader
+      dataset:
+        type: CocoDetection
+        img_folder: data/COCO2017/val2017/
+        ann_file: data/COCO2017/annotations/instances_val2017.json
+        return_masks: False
+        transforms:
+          type: Compose
+          ops: []
+      shuffle: False
+      num_workers: 4
+      drop_last: False
+      collate_fn:
+        type: BatchImageCollateFunction
+
+  - name: val_dataloader_tractor_plowed
+    role: val
+    evaluator:
+      type: SegmentationEvaluator
+      metric: mIoU  # пример метрики для сегментации
+    params:
+      type: DataLoader
+      dataset:
+        type: SemSegmentation
+        img_folder: /data/Datasets/tractor_shared/segm/tractor_plowed/
+        split: "val"
+        dataset_source: "tractor_plowed"
+        transforms:
+          type: Compose
+          ops: ~
+      shuffle: False
+      num_workers: 4
+      drop_last: False
+      collate_fn:
+        type: BatchImageCollateFunction
+
+  - name: val_dataloader_agro_drivable
+    role: val
+    evaluator:
+      type: SegmentationEvaluator
+      metric: mIoU  # пример метрики для сегментации
+    params:
+      type: DataLoader
+      dataset:
+        type: SemSegmentation
+        img_folder: /data/Datasets/tractor_shared/segm/agro_drivable/
+        split: "val"
+        dataset_source: "agro_drivable"
+        transforms:
+          type: Compose
+          ops: ~
+      shuffle: False
+      num_workers: 4
+      drop_last: False
+      collate_fn:
+        type: BatchImageCollateFunction
+
+
+
+# evaluators:
+#   val_dataloader:
+#     type: CocoEvaluator
+#     iou_types: ['bbox']
+  
+#   val_dataloader_tractor_plowed:
+#     type: SegmentationEvaluator
+#     metric: mIoU  # пример метрики для сегментации
+
+#   val_dataloader_agro_drivable:
+#     type: SegmentationEvaluator
+#     metric: mIoU
+
+
+
+# train_dataloader:
+#   type: DataLoader
+#   dataset:
+#     type: CocoDetection
+#     img_folder: data/COCO2017/train2017/
+#     ann_file: data/COCO2017/annotations/instances_train2017.json #instances_train2017
+#     return_masks: False #False
+#     transforms:
+#       type: Compose
+#       ops: ~
+#   shuffle: True
+#   num_workers: 4
+#   drop_last: True
+#   collate_fn:
+#     type: BatchImageCollateFunction
+
+# train_dataloader_tractor_plowed:
+#   type: DataLoader
+#   dataset:
+#     type: SemSegmentation
+#     img_folder: /data/Datasets/tractor_shared/segm/tractor_plowed/
+#     split: "train"
+#     dataset_source: "tractor_plowed"
+#     # ann_file: data/COCO2017/annotations/instances_train2017.json #instances_train2017
+#     # return_masks: True #False
+#     transforms:
+#       type: Compose
+#       ops: ~
+#   shuffle: True
+#   num_workers: 4
+#   drop_last: True
+#   collate_fn:
+#     type: BatchImageCollateFunction
+
+# train_dataloader_agro_drivable:
+#   type: DataLoader
+#   dataset:
+#     type: SemSegmentation
+#     img_folder: /data/Datasets/tractor_shared/segm/agro_drivable/
+#     split: "train"
+#     dataset_source: "agro_drivable"
+#     # ann_file: data/COCO2017/annotations/instances_train2017.json #instances_train2017
+#     # return_masks: True #False
+#     transforms:
+#       type: Compose
+#       ops: ~
+#   shuffle: True
+#   num_workers: 4
+#   drop_last: True
+#   collate_fn:
+#     type: BatchImageCollateFunction
+
+# val_dataloader:
+#   type: DataLoader
+#   dataset:
+#     type: CocoDetection
+#     img_folder: data/COCO2017/val2017/
+#     ann_file: data/COCO2017/annotations/instances_val2017.json #instances_val2017
+#     return_masks: False #False
+#     transforms:
+#       type: Compose
+#       ops: ~
+#   shuffle: False
+#   num_workers: 4
+#   drop_last: False
+#   collate_fn:
+#     type: BatchImageCollateFunction
+
+# val_dataloader_tractor_plowed:
+#   type: DataLoader
+#   dataset:
+#     type: SemSegmentation
+#     img_folder: data/KROMKA/
+#     split: "val"
+#     dataset_source: "tractor_plowed"
+#     transforms:
+#       type: Compose
+#       ops: ~
+#   shuffle: False
+#   num_workers: 4
+#   drop_last: False
+#   collate_fn:
+#     type: BatchImageCollateFunction
+
+# val_dataloader_agro_drivable:
+#   type: DataLoader
+#   dataset:
+#     type: SemSegmentation
+#     img_folder: /data/Datasets/tractor_shared/segm/agro_drivable/
+#     split: "val"
+#     dataset_source: "agro_drivable"
+#     # ann_file: data/COCO2017/annotations/instances_val2017.json #instances_val2017
+#     # return_masks: False #False
+#     transforms:
+#       type: Compose
+#       ops: ~
+#   shuffle: False
+#   num_workers: 4
+#   drop_last: False
+#   collate_fn:
+#     type: BatchImageCollateFunction

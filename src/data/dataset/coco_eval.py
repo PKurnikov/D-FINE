@@ -18,13 +18,15 @@ from faster_coco_eval import COCO, COCOeval_faster
 from ...core import register
 from ...misc import dist_utils
 
+from .evaluator import BaseEvaluator
+
 __all__ = [
     "CocoEvaluator",
 ]
 
 
 @register()
-class CocoEvaluator(object):
+class CocoEvaluator(Evaluator):
     def __init__(self, coco_gt, iou_types):
         assert isinstance(iou_types, (list, tuple))
         coco_gt = copy.deepcopy(coco_gt)

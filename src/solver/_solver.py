@@ -173,8 +173,8 @@ class BaseSolver(object):
         for k, v in self.__dict__.items():
             if hasattr(v, 'load_state_dict') and k in state:
                 # # !!!!!!!!!!!!!!!!!!!!!
-                # if (k == 'optimizer'):
-                #     continue
+                if (k == 'optimizer'):
+                    continue
                 # # !!!!!!!!!!!!!!!!!!!!!
                 v = dist_utils.de_parallel(v)
                 v.load_state_dict(state[k]) # , strict=False

@@ -89,7 +89,7 @@ dataloaders = [
             shuffle=True,
             num_workers=4,
             drop_last=True,
-            total_batch_size=16,
+            total_batch_size=8,
         ),
     ),
     dict(
@@ -149,7 +149,7 @@ dataloaders = [
             shuffle=True,
             num_workers=4,
             drop_last=True,
-            total_batch_size=16,
+            total_batch_size=24,
         )
     ),
     dict(

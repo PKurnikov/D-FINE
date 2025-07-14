@@ -1,21 +1,21 @@
 _base_ = [
     'dataloaders.py',
-    '../../runtime.py',
+    '../../../runtime.py',
     # '../include/dataloader.py', # dublicate, was moved to coco_detection.py
-    '../include/optimizer.py',
+    '../../include/optimizer.py',
     'dfine_hgnetv2.py',
 ]
 
 output_dir = './output/dfine_hgnetv2_m_obj2coco'
 
-use_ema = True  # Enabled by default
-use_amp = True
+use_ema = False  # Enabled by default
+use_amp = False
 
 model='DFINE'
 
 DFINE=dict(
-  backbone='HGNetv2',
-  encoder='HybridEncoder',
+  backbone='HGNetv2',           # weights were frozen !!!
+  encoder='HybridEncoder',      # weights were frozen !!!
   decoder='DFINETransformer',
   spatial='SpatialPath',
   sgm_decoder='BiSeNetDecoder'
@@ -25,11 +25,14 @@ DFINE=dict(
 HGNetv2 = dict(
     name='B2',
     return_idx=[1, 2, 3],
-    freeze_at=-1,
+    freeze_at=3,                        # FOR FREEZE ALL PARAMS !!!
+    # freeze_at=-1,
+    freeze_stem_only=False,             # FOR FREEZE ALL PARAMS !!!
     freeze_norm=False,
     use_lab=True,
     pretrained=True,
-    local_model_dir='weight/hgnetv2/'
+    local_model_dir='weight/hgnetv2/',
+    freeze_norm_stats=False
 )
 
 BiSeNetDecoder=dict(
@@ -43,7 +46,8 @@ BiSeNetDecoder=dict(
           name='agro_drivable',
           out_planes=5
       )
-  ]
+  ],
+  freeze_norm_stats=False
 )
 
 DFINETransformer=dict(
@@ -73,7 +77,8 @@ DFINETransformer=dict(
   num_points=[3, 6, 3], # [4, 4, 4] [3, 6, 3]
   cross_attn_method='default', # default, discrete
   query_select_method='default', # default, agnostic
-  freeze=False # False by default !!!
+  freeze=True,                           # FOR FREEZE ALL PARAMS !!!
+  freeze_norm_stats=False
 )
 
 HybridEncoder=dict(
@@ -92,12 +97,14 @@ HybridEncoder=dict(
   expansion=1.0,
   depth_mult=0.67,
   act='silu',
-  freeze=False
+  freeze=True,                           # FOR FREEZE ALL PARAMS !!!
+  freeze_norm_stats=False
 )
 
 SpatialPath=dict(
   in_planes=3,
-  out_planes=256 #256 #192 #128 for base BiSeNet, 256 for wider backbone ???
+  out_planes=256, #256 #192 #128 for base BiSeNet, 256 for wider backbone ???
+  freeze_norm_stats=False
 )
 
 optimizer = dict(

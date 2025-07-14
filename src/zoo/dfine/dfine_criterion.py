@@ -372,6 +372,12 @@ class DFINECriterion(nn.Module):
                 losses[key] = torch.tensor(0.0, device=device)
         return losses
 
+    def get_device(self, outputs):
+        device = torch.device("cuda", 0)
+        for key, v in outputs.items():
+            device = v.device
+        return device
+
     def forward(self, outputs, targets, **kwargs):
         """This performs the loss computation.
         Parameters:
@@ -379,7 +385,7 @@ class DFINECriterion(nn.Module):
              targets: list of dicts, such that len(targets) == batch_size.
                       The expected keys in each dict depends on the losses applied, see each loss' doc
         """
-        outputs_without_aux = {k: v for k, v in outputs.items() if "aux" not in k}
+        outputs_without_aux = {k: v for k, v in outputs.items() if "aux" not in k and "outputs" in k}
 
         # Найти индексы элементов, где есть 'bbox'
         indices_with_bbox = [i for i, t in enumerate(targets) if 'boxes' in t]
@@ -410,15 +416,18 @@ class DFINECriterion(nn.Module):
             if is_dist_available_and_initialized():
                 torch.distributed.all_reduce(num_boxes_go)
             num_boxes_go = torch.clamp(num_boxes_go / get_world_size(), min=1).item()
-        else:
-            assert "aux_outputs" in outputs, ""
+        # else:
+        #     assert "aux_outputs" in outputs, ""
 
-        # Compute the average number of target boxes accross all nodes, for normalization purposes
-        num_boxes = sum(len(t["labels"]) for t in filtered_targets)
-        num_boxes = torch.as_tensor([num_boxes], dtype=torch.float, device=next(iter(outputs.values())).device)
-        if is_dist_available_and_initialized():
-            torch.distributed.all_reduce(num_boxes)
-        num_boxes = torch.clamp(num_boxes / get_world_size(), min=1).item()
+        if not filtered_targets or all(len(t["labels"]) == 0 for t in filtered_targets):
+            num_boxes = 1.0  # безопасное значение по умолчанию
+        else:
+            # Compute the average number of target boxes accross all nodes, for normalization purposes
+            num_boxes = sum(len(t["labels"]) for t in filtered_targets)
+            num_boxes = torch.as_tensor([num_boxes], dtype=torch.float, device=next(iter(outputs.values())).device)
+            if is_dist_available_and_initialized():
+                torch.distributed.all_reduce(num_boxes)
+            num_boxes = torch.clamp(num_boxes / get_world_size(), min=1).item()
 
         # Compute all the requested losses
         losses = {}
@@ -541,7 +550,8 @@ class DFINECriterion(nn.Module):
                     losses.update(l_dict)
 
         ###############################################
-        device = outputs['pred_logits'].device
+        # device = outputs['pred_logits'].device
+        device = self.get_device(outputs)
         losses = self.fill_missing_losses(losses, self.expected_keys, device)
         
         # expected_keys = ['loss_bbox_dn_0', 'loss_bbox_dn_1', 'loss_bbox_dn_2', 'loss_bbox_dn_3', 'loss_bbox_dn_pre',

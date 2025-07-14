@@ -72,6 +72,17 @@ class HungarianMatcher(nn.Module):
             For each batch element, it holds:
                 len(index_i) = len(index_j) = min(num_queries, num_target_boxes)
         """
+
+        # Если все таргеты пустые — сразу возвращаем пустые индексы
+        # Проверка наличия необходимых ключей и непустых значений
+        if "pred_logits" not in outputs or "pred_boxes" not in outputs:
+            return {
+                "indices": [
+                    (torch.empty(0, dtype=torch.int64), torch.empty(0, dtype=torch.int64))
+                    for _ in range(len(targets))
+                ]
+            }
+
         bs, num_queries = outputs["pred_logits"].shape[:2]
 
         # We flatten to compute the cost matrices in a batch

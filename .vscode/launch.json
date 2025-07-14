@@ -42,12 +42,12 @@
                 "4",
                 "train.py",
                 "-c",
-                "configs/dfine/objects365/dfine_hgnetv2_m_obj2coco.py",
+                "configs/dfine/custom/shared_tractor/dfine_hgnetv2_m_obj2coco.py",
                 // "configs/dfine/objects365/dfine_hgnetv2_m_obj2coco.yml",
-                "--use-amp",  // ← Include this only if you want AMP
-                // "-r",
-                // "output/dfine_hgnetv2_m_obj2coco/checkpoint0006.pth",
-                // "--test-only"
+                // "--use-amp",  // ← Include this only if you want AMP
+                "-r",
+                "output/dfine_hgnetv2_m_obj2coco_copy/checkpoint0007.pth",
+                "--test-only"
                 // "--use-amp",
                 // "False"
             ],

@@ -61,6 +61,7 @@ class SemSegmentation(torchvision.datasets.Cityscapes, DetDataset):
         self.dataset_source = dataset_source  # имя источника данных
 
     def __getitem__(self, idx):
+        # idx = 3020
         img, target = self.load_item(idx)
         if self._transforms is not None:
             img, target, _ = self._transforms(img, target, self)
@@ -110,7 +111,7 @@ class CocoDetection(torchvision.datasets.CocoDetection, DetDataset):
         self.remap_mscoco_category = remap_mscoco_category
 
     def __getitem__(self, idx):
-        
+        # idx = 2
         img, target = self.load_item(idx)
         if self._transforms is not None:
             img, target, _ = self._transforms(img, target, self)

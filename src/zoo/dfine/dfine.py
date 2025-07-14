@@ -36,53 +36,82 @@ class DFINE(nn.Module):
             return False
         return any('boxes' in t for t in targets)
 
-    def forward(self, x, targets=None, det_mode=2):
-        if (targets is None):
+    def forward(self, x, targets=None, mode=2): 
+        if targets is None:
             indices_with_masks = list(range(x.shape[0]))
             indices_with_bbox = list(range(x.shape[0]))
             targets_with_bbox = None
             targets_with_masks = None
         else:
-            # Найти индексы элементов, где есть 'masks'
             indices_with_masks = [i for i, t in enumerate(targets) if 'masks' in t]
-            # Найти индексы элементов, где есть 'bbox'
             indices_with_bbox = [i for i, t in enumerate(targets) if 'boxes' in t]
             targets_with_bbox = [targets[i] for i in indices_with_bbox]
             targets_with_masks = [targets[i] for i in indices_with_masks]
-       
-        # Создать новый тензор x по выбранным индексам
-        x_with_masks = x[indices_with_masks]    
-      
-        if det_mode > 0:  
-            # for shared
+
+        results = {}
+
+        # Сегментация (mode 1 или 2)
+        if mode in (1, 2):
+            x_with_masks = x[indices_with_masks]
             x_spatial = self.spatial(x_with_masks)
-        
-        x = self.backbone(x)
-        
-        if det_mode > 0:
-            # Создать новый тензор x по выбранным индексам
-            x_backbon_segm = [v_[indices_with_masks] for v_ in x]
+            x_backbone = self.backbone(x)
+            x_backbon_segm = [v_[indices_with_masks] for v_ in x_backbone]
             x_sgm = self.sgm_decoder(x_spatial, x_backbon_segm, targets_with_masks)
+            results.update(x_sgm)
+
+        # Детекция (mode 0 или 2)
+        if mode in (0, 2):
+            x_backbone = self.backbone(x) if mode == 0 else x_backbone  # reuse if already computed
+            filtered_x = [v_[indices_with_bbox] for v_ in x_backbone]
+            encoded = self.encoder(filtered_x)
+            detected = self.decoder(encoded, targets_with_bbox)
+            results.update(detected)
+
+        return results
+
+    # def forward(self, x, targets=None, det_mode=2):
+    #     if (targets is None):
+    #         indices_with_masks = list(range(x.shape[0]))
+    #         indices_with_bbox = list(range(x.shape[0]))
+    #         targets_with_bbox = None
+    #         targets_with_masks = None
+    #     else:
+    #         # Найти индексы элементов, где есть 'masks'
+    #         indices_with_masks = [i for i, t in enumerate(targets) if 'masks' in t]
+    #         # Найти индексы элементов, где есть 'bbox'
+    #         indices_with_bbox = [i for i, t in enumerate(targets) if 'boxes' in t]
+    #         targets_with_bbox = [targets[i] for i in indices_with_bbox]
+    #         targets_with_masks = [targets[i] for i in indices_with_masks]
+       
+    #     # Создать новый тензор x по выбранным индексам
+    #     x_with_masks = x[indices_with_masks]    
+      
+    #     if det_mode > 0:  
+    #         # for shared
+    #         x_spatial = self.spatial(x_with_masks)
         
-        # x.reverse()
+    #     x = self.backbone(x)
         
-        # Создать новый тензор x по выбранным индексам
-        filtered_x = [v_[indices_with_bbox] for v_ in x]
+    #     if det_mode > 0:
+    #         # Создать новый тензор x по выбранным индексам
+    #         x_backbon_segm = [v_[indices_with_masks] for v_ in x]
+    #         x_sgm = self.sgm_decoder(x_spatial, x_backbon_segm, targets_with_masks)
         
-        filtered_x = self.encoder(filtered_x)
+    #     # Создать новый тензор x по выбранным индексам
+    #     filtered_x = [v_[indices_with_bbox] for v_ in x]
         
-        # Создать новый список targets, содержащий только элементы с 'bbox'
-        # filtered_targets = [targets[i] for i in indices_with_bbox]
-        filtered_x = self.decoder(filtered_x, targets_with_bbox)
+    #     filtered_x = self.encoder(filtered_x)
         
-        # return filtered_x
+    #     # Создать новый список targets, содержащий только элементы с 'bbox'
+    #     filtered_x = self.decoder(filtered_x, targets_with_bbox)
         
-        if det_mode == 1:
-            return x_sgm
-        if det_mode == 2:
-            filtered_x.update(x_sgm)
         
-        return filtered_x
+    #     if det_mode == 1:
+    #         return {}.update(x_sgm)
+    #     if det_mode == 2:
+    #         filtered_x.update(x_sgm)
+        
+    #     return filtered_x
 
     def deploy(self, ):
         self.eval()

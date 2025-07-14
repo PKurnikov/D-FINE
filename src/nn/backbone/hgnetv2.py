@@ -444,6 +444,7 @@ class HGNetv2(nn.Module):
         freeze_norm=True,
         pretrained=True,
         local_model_dir="weight/hgnetv2/",
+        freeze_norm_stats=False
     ):
         super().__init__()
         self.use_lab = use_lab
@@ -499,6 +500,9 @@ class HGNetv2(nn.Module):
 
         if freeze_norm:
             self._freeze_norm(self)
+
+        if freeze_norm_stats:
+            self.freeze_norm_stats(self)
 
         if pretrained:
             RED, GREEN, RESET = "\033[91m", "\033[92m", "\033[0m"
@@ -568,6 +572,27 @@ class HGNetv2(nn.Module):
     def _freeze_parameters(self, m: nn.Module):
         for p in m.parameters():
             p.requires_grad = False
+
+    def freeze_norm_stats(self, m: nn.Module):
+        for m_ in m.modules():
+            if isinstance(m_, (nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d,
+                            nn.SyncBatchNorm, nn.InstanceNorm1d, nn.InstanceNorm2d, nn.InstanceNorm3d,
+                            nn.GroupNorm, nn.LayerNorm, FrozenBatchNorm2d)):
+                m_.eval()
+                for param in m_.parameters():
+                    param.requires_grad = False
+                if hasattr(m_, 'track_running_stats'):
+                    m_.track_running_stats = False
+
+
+    def unfreeze_norm_stats(self, m: nn.Module):
+        for m_ in m.modules():
+            if isinstance(m_, (nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d,
+                            nn.SyncBatchNorm, nn.InstanceNorm1d, nn.InstanceNorm2d, nn.InstanceNorm3d,
+                            nn.GroupNorm, nn.LayerNorm)):
+                m_.train()
+                if hasattr(m_, 'track_running_stats'):
+                    m_.track_running_stats = True
 
     def forward(self, x):
         x = self.stem(x)

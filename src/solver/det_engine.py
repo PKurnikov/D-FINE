@@ -98,6 +98,14 @@ class ImageWriter():
 
 imageWriter = ImageWriter(6)
 
+def check_numerics(tensor_dict: dict, name="outputs"):
+    for k, v in tensor_dict.items():
+        if isinstance(v, torch.Tensor):
+            if torch.isnan(v).any() or torch.isinf(v).any():
+                print(f"NaN or Inf detected in {name}['{k}']")
+                return True
+    return False
+
 def train_one_epoch(
     model: torch.nn.Module,
     criterion: torch.nn.Module,
@@ -137,7 +145,7 @@ def train_one_epoch(
 
     # Создаем итераторы и определяем минимальную длину для одной эпохи
     data_iters = [iter(dl) for dl in data_loaders]
-    max_len = max(len(dl) for dl in data_loaders) * world_size
+    max_len = 50 #max(len(dl) for dl in data_loaders) * world_size
 
     for i, _ in enumerate(metric_logger.log_every(range(max_len), print_freq, header)):
         samples_list = []
@@ -169,19 +177,32 @@ def train_one_epoch(
 
         if scaler is not None:
             with torch.autocast(device_type=str(device), cache_enabled=True):
-                outputs = model(samples, targets=targets, det_mode=2) # 0 for det only and 2 for shared
+                outputs = model(samples, targets=targets, mode=1) # 0 for det only and 2 for shared
                 
-            if torch.isnan(outputs['pred_boxes']).any() or torch.isinf(outputs['pred_boxes']).any():
-                print(outputs['pred_boxes'])
-                state = model.state_dict()
-                new_state = {}
-                for key, value in model.state_dict().items():
-                    # Replace 'module' with 'model' in each key
-                    new_key = key.replace("module.", "")
-                    # Add the updated key-value pair to the state dictionary
-                    state[new_key] = value
-                new_state["model"] = state
-                dist_utils.save_on_master(new_state, "./NaN.pth")
+
+            if check_numerics(outputs):
+                print("NaNs detected, saving model state")
+                state = {
+                    "model": model.state_dict(),
+                    "optimizer": optimizer.state_dict(),
+                    "scaler": scaler.state_dict() if scaler else None,
+                    "epoch": epoch,
+                    "step": global_step,
+                }
+                dist_utils.save_on_master(state, "./nan_checkpoint.pth")
+                raise RuntimeError("NaNs encountered in model outputs")
+
+            # if torch.isnan(outputs['pred_boxes']).any() or torch.isinf(outputs['pred_boxes']).any():
+            #     print(outputs['pred_boxes'])
+            #     state = model.state_dict()
+            #     new_state = {}
+            #     for key, value in model.state_dict().items():
+            #         # Replace 'module' with 'model' in each key
+            #         new_key = key.replace("module.", "")
+            #         # Add the updated key-value pair to the state dictionary
+            #         state[new_key] = value
+            #     new_state["model"] = state
+            #     dist_utils.save_on_master(new_state, "./NaN.pth")
                 
                 
             with torch.autocast(device_type=str(device), enabled=False): # enabled=False
@@ -201,7 +222,11 @@ def train_one_epoch(
             #     torch.cuda.empty_cache()
 
         else:
-            outputs = model(samples, targets=targets)
+            # for name, param in model.named_parameters():
+            #     if param.requires_grad:
+            #         print(f"Parameter still requires grad: {name}")
+
+            outputs = model(samples, targets=targets, mode=1)
             loss_dict = criterion(outputs, targets, **metas)
 
             loss: torch.Tensor = sum(loss_dict.values())
@@ -306,23 +331,24 @@ def evaluate(
         samples = samples.to(device)
         targets = [{k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in t.items()} for t in targets]
 
-        outputs = model(samples)
+        with torch.no_grad():
+            outputs = model(samples)
 
-        # Если нужен постпроцессинг
-        if postprocessor:
-            _, _, H_, W_ = samples.shape
-            # Получаем оригинальные размеры из samples (обычно: (N, C, H, W))
-            orig_target_sizes = torch.tensor([W_, H_], device=samples.device)
-            outputs, targets_tensor = postprocessor(outputs, orig_target_sizes, targets)
-        else:
-            # Попробовать собрать тензор вручную
-            targets_tensor = targets
+            # Если нужен постпроцессинг
+            if postprocessor:
+                _, _, H_, W_ = samples.shape
+                # Получаем оригинальные размеры из samples (обычно: (N, C, H, W))
+                orig_target_sizes = torch.tensor([W_, H_], device=samples.device)
+                outputs, targets_tensor = postprocessor(outputs, orig_target_sizes, targets)
+            else:
+                # Попробовать собрать тензор вручную
+                targets_tensor = targets
 
-        evaluator.update(outputs, targets_tensor)
+            evaluator.update(outputs, targets_tensor)
 
-        # TODO: временное решение для валидации сегментации, необходимо переписать !!!
-        if (isinstance(outputs, torch.Tensor)):
-            segmetric.update(outputs.cpu().detach().numpy(), targets_tensor.cpu().detach().numpy())
+            # TODO: временное решение для валидации сегментации, необходимо переписать !!!
+            if (isinstance(outputs, torch.Tensor)):
+                segmetric.update(outputs.cpu().detach().numpy(), targets_tensor.cpu().detach().numpy())
     # Синхронизация для DDP
     metric_logger.synchronize_between_processes()
 

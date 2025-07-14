@@ -9,7 +9,11 @@ __all__ = ['SpatialPath', 'BiSeNetDecoder']
 
 @register()
 class SpatialPath(nn.Module):
-    def __init__(self, in_planes, out_planes, norm_layer=nn.BatchNorm2d): #nn.BatchNorm2d
+    def __init__(self, 
+                 in_planes, 
+                 out_planes, 
+                 norm_layer=nn.BatchNorm2d,
+                 freeze_norm_stats=False): #nn.BatchNorm2d
         super(SpatialPath, self).__init__()
         inner_channel = 64
         self.conv_7x7 = ConvBnRelu(in_planes, inner_channel, 7, 2, 3,
@@ -24,6 +28,19 @@ class SpatialPath(nn.Module):
         self.conv_1x1 = ConvBnRelu(inner_channel, out_planes, 1, 1, 0,
                                    has_bn=True, norm_layer=norm_layer,
                                    has_relu=True, has_bias=False, has_coords=False)
+        if freeze_norm_stats:
+            self.freeze_norm_stats(self)
+
+    def freeze_norm_stats(self, m: nn.Module):
+        for m_ in m.modules():
+            if isinstance(m_, (nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d,
+                            nn.SyncBatchNorm, nn.InstanceNorm1d, nn.InstanceNorm2d, nn.InstanceNorm3d,
+                            nn.GroupNorm, nn.LayerNorm)):
+                m_.eval()
+                for param in m_.parameters():
+                    param.requires_grad = False
+                if hasattr(m_, 'track_running_stats'):
+                    m_.track_running_stats = False
 
     def forward(self, x):
         x = self.conv_7x7(x)
@@ -315,8 +332,12 @@ class ASPP(nn.Module):
 
 @register()
 class BiSeNetDecoder(nn.Module):
-    def __init__(self, out_planes, in_planes,
-                 norm_layer=nn.BatchNorm2d, head_configs=None):
+    def __init__(self, 
+                 out_planes, 
+                 in_planes,
+                 norm_layer=nn.BatchNorm2d, 
+                 head_configs=None,
+                 freeze_norm_stats=False):
         super(BiSeNetDecoder, self).__init__()
 
         conv_channels = [256, 256] # 128 for small_dfine  [p // 4 for p in in_planes]  # например, [384, 192]
@@ -377,6 +398,8 @@ class BiSeNetDecoder(nn.Module):
                     is_aux=False,
                     norm_layer=norm_layer)
 
+        if freeze_norm_stats:
+            self.freeze_norm_stats(self)
             # for head_name, cfg in output_heads.items():
             #     self.heads[output_name][head_name] = BiSeNetHead(
             #         in_planes=cfg.get('in_planes', conv_channels[0]),
@@ -391,6 +414,17 @@ class BiSeNetDecoder(nn.Module):
         #     ConvBnRelu(in_planes[0], conv_channels[0], 1, 1, 0,
         #             has_bn=True, has_relu=True, has_bias=False, norm_layer=norm_layer)
         # ])
+
+    def freeze_norm_stats(self, m: nn.Module):
+        for m_ in m.modules():
+            if isinstance(m_, (nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d,
+                            nn.SyncBatchNorm, nn.InstanceNorm1d, nn.InstanceNorm2d, nn.InstanceNorm3d,
+                            nn.GroupNorm, nn.LayerNorm)):
+                m_.eval()
+                for param in m_.parameters():
+                    param.requires_grad = False
+                if hasattr(m_, 'track_running_stats'):
+                    m_.track_running_stats = False
 
     def forward(self, spatial_out, context_blocks, targets=None):
         context_blocks.reverse()

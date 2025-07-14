@@ -331,6 +331,7 @@ class HybridEncoder(nn.Module):
                  act='silu',
                  eval_spatial_size=None,
                  freeze=False,
+                 freeze_norm_stats=False
                  ):
         super().__init__()
         self.in_channels = in_channels
@@ -414,6 +415,9 @@ class HybridEncoder(nn.Module):
         if freeze:
             self.freeze()
 
+        if freeze_norm_stats:
+            self.freeze_norm_stats(self)
+
     def _reset_parameters(self):
         if self.eval_spatial_size:
             for idx in self.use_encoder_idx:
@@ -448,6 +452,27 @@ class HybridEncoder(nn.Module):
     def freeze(self):
         for param in self.parameters():
             param.requires_grad = False
+
+    def freeze_norm_stats(self, m: nn.Module):
+        for m_ in m.modules():
+            if isinstance(m_, (nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d,
+                            nn.SyncBatchNorm, nn.InstanceNorm1d, nn.InstanceNorm2d, nn.InstanceNorm3d,
+                            nn.GroupNorm, nn.LayerNorm)):
+                m_.eval()
+                for param in m_.parameters():
+                    param.requires_grad = False
+                if hasattr(m_, 'track_running_stats'):
+                    m_.track_running_stats = False
+
+
+    def unfreeze_norm_stats(self, m: nn.Module):
+        for m_ in m.modules():
+            if isinstance(m_, (nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d,
+                            nn.SyncBatchNorm, nn.InstanceNorm1d, nn.InstanceNorm2d, nn.InstanceNorm3d,
+                            nn.GroupNorm, nn.LayerNorm)):
+                m_.train()
+                if hasattr(m_, 'track_running_stats'):
+                    m_.track_running_stats = True
 
     def forward(self, feats):
         assert len(feats) == len(self.in_channels)

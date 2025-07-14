@@ -57,7 +57,8 @@ DFINECriterion=dict(
       pred_sgm_head_agro_drivable_aux2=1.0,
       pred_sgm_head_agro_drivable_main=1.0),
 
-    losses=['vfl', 'boxes', 'local'],
+    losses=[],
+    # losses=['vfl', 'boxes', 'local'],
     alpha=0.75,
     gamma=2.0,
     reg_max=32,
